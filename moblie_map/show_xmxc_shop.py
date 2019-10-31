@@ -2,7 +2,8 @@
 import math
 
 from DBUtils.PooledDB import PooledDB
-from flask import Flask, request
+from flask import Flask, request,Blueprint
+from flask_docs import ApiDoc
 import pymysql
 import json
 import time
@@ -10,6 +11,13 @@ import datetime
 import pandas as pd
 
 app = Flask(__name__)
+
+app.config['API_DOC_MEMBER'] = ['api', 'platform']
+
+ApiDoc(app)
+
+api = Blueprint('api', __name__)
+platform = Blueprint('platform', __name__)
 
 EARTH_REDIUS = 6378.137
 
@@ -58,8 +66,31 @@ last_month = datetime.date.today().month - 1
 
 
 # 返回写字楼数据
-@app.route('/getOfficeInfo')
-def getOfficeInfo():
+@app.route('/api/getOfficeInfo')
+def get_office_info():
+    """返回写字楼详细列表
+
+        @@@
+        #### 参数列表
+
+        | 参数 | 描述 | 类型 | 例子 |
+        |--------|--------|--------|--------|
+        |    coordinate    |    经纬度    |    string   |    116.494325,39.976051    |
+        |    distance    |    半径    |    string   |    1.5    |
+        |    city    |    城市    |    string   |    北京市   |
+
+        #### 字段解释
+
+        | 名称 | 描述 | 类型 |
+        |--------|--------|--------|--------|
+        |    office_name    |    写字楼名称    |    string   |
+        |    distance    |    与所选点距离    |    double   |
+
+        #### return
+        - ##### json
+        > [{"office_name": "恒通商务园", "office_rent": "5.5", "distance": 0.3893995993948515}, {"office_name": "瀚海国际大厦 ", "office_rent": "6.9", "distance": 0.5507685602422158}]
+        @@@
+        """
     db = pool_mapmarkeronline.connection()
     cur = db.cursor()
     coordinate = request.args.get('coordinate')
@@ -73,7 +104,7 @@ def getOfficeInfo():
     up_lng = float(lng) + 0.05
     down_lng = float(lng) - 0.05
 
-    sql = "SELECT b_name,daily_rent,longitude,latitude from t_map_office_building where longitude !='不明' and b_city='%s'  and latitude BETWEEN '%s' and " \
+    sql = "SELECT b_name,longitude,latitude from t_map_office_building where longitude !='不明' and b_city='%s'  and latitude BETWEEN '%s' and " \
           "'%s' and longitude BETWEEN '%s' and '%s'" % (city, down_lat, up_lat, down_lng, up_lng)
     sq = []
     cur.execute(sql)
@@ -82,14 +113,12 @@ def getOfficeInfo():
     for row in results:
         data = {}
         b_name = row[0]
-        daily_rent = row[1]
         longitude = row[2]
         latitude = row[3]
         dis = getDistance(float(latitude), float(longitude), float(lat), float(lng))
         if dis <= float(distance):
             # office_count=office_count+1
             data['office_name'] = b_name
-            data['office_rent'] = daily_rent
             data['distance'] = dis
             sq.append(data)
     jsondatar = json.dumps(sq, ensure_ascii=False)
@@ -98,8 +127,31 @@ def getOfficeInfo():
 
 
 # 返回小区数据
-@app.route('/getHousingInfo')
-def getHousingInfo():
+@app.route('/api/getHousingInfo')
+def get_housing_info():
+    """返回小区详细数据列表
+
+            @@@
+            #### 参数列表
+
+            | 参数 | 描述 | 类型 | 例子 |
+            |--------|--------|--------|--------|
+            |    coordinate    |    经纬度    |    string   |    116.494325,39.976051    |
+            |    distance    |    半径    |    string   |    1.5    |
+            |    city    |    城市    |    string   |    北京市   |
+
+            #### 字段解释
+
+            | 名称 | 描述 | 类型 |
+            |--------|--------|--------|--------|
+            |    housing_name    |    小区名称    |    string   |
+            |    distance    |    与所选点距离    |    double   |
+
+            #### return
+            - ##### json
+            > [{"housing_name": "芳园里", "distance": 0.5681041154328037}, {"housing_name": "银河湾", "distance": 0.8682477990692311}]
+            @@@
+            """
     db = pool_mapmarkeronline.connection()
     cur = db.cursor()
     coordinate = request.args.get('coordinate')
@@ -111,7 +163,7 @@ def getHousingInfo():
     down_lat = float(lat) - 0.04
     up_lng = float(lng) + 0.05
     down_lng = float(lng) - 0.05
-    sql = "SELECT uptown_name,SUBSTRING_INDEX(ave_price,'-',1) ave_price,longitude,latitude,house_num from t_map_lianjia_uptown where longitude !='不明' and " \
+    sql = "SELECT uptown_name,longitude,latitude from t_map_lianjia_uptown where longitude !='不明' and " \
           "city='%s' and latitude BETWEEN '%s' and '%s' and longitude BETWEEN '%s' and '%s'"  % (city, down_lat, up_lat, down_lng, up_lng)
     sq = []
     cur.execute(sql)
@@ -120,16 +172,13 @@ def getHousingInfo():
     for row in results:
         data = {}
         uptown_name = row[0]
-        ave_price = row[1]
-        longitude = row[2]
-        latitude = row[3]
-        house_num = row[4]
+        longitude = row[1]
+        latitude = row[2]
         dis = getDistance(float(latitude), float(longitude), float(lat), float(lng))
         if dis <= float(distance):
 
-            data['office_name'] = uptown_name
-            data['office_rent'] = ave_price
-            data['house_num'] = house_num
+            data['housing_name'] = uptown_name
+
             data['distance'] = dis
             sq.append(data)
     jsondatar = json.dumps(sq, ensure_ascii=False)
@@ -137,42 +186,106 @@ def getHousingInfo():
     return jsondatar
 
 
-# 返回周边数据
-@app.route('/getFoodDisInfo')
-def getFoodDisInfo():
-    db = pool_mapmarkeronline.connection()
-    cur = db.cursor()
-    coordinate = request.args.get('coordinate')
-    lat = str(coordinate).split(",")[1]
-    lng = str(coordinate).split(",")[0]
-    distance = request.args.get('distance')
-    city = request.args.get('city')
-    up_lat = float(lat) + 0.04
-    down_lat = float(lat) - 0.04
-    up_lng = float(lng) + 0.05
-    down_lng = float(lng) - 0.05
-    sql_food = "SELECT latitude,longitude,client_name,month_sale_num from t_map_client_mt_%s_mark where update_time BETWEEN %s and %s and latitude BETWEEN '%s' and  " \
-               "'%s' and longitude BETWEEN '%s' and '%s' order by month_sale_num desc" % (city, up_time, to_time, down_lat, up_lat, down_lng, up_lng)
+# 返回周边配套餐饮商户名单
+# @app.route('/api/getFoodDisInfo')
+# def get_food_dis_info():
+#     """返回周边配套餐饮商户名单
+#
+#     @@@
+#     #### 参数列表
+#
+#     | 参数 | 描述 | 类型 | 例子 | 备注 |
+#     |--------|--------|--------|--------|--------|
+#     |    coordinate    |    经纬度    |    string   |    116.494325,39.976051    |       |
+#     |    distance    |    半径    |    string   |    1.5    |       |
+#     |    city    |    城市    |    string   |    beijing   |       |
+#     |    cate    |    品类    |    string   |    东北菜   |    需要从周边品类榜中获取   |
+#
+#     #### 字段解释
+#
+#     | 名称 | 描述 | 类型 |
+#     |--------|--------|--------|--------|
+#     |    shop_name    |    商户名称    |    string   |
+#     |    shop_month_sale    |    商户月销量    |    int   |
+#
+#     #### return
+#     - ##### json
+#     > [{"shop_name": "川湘快餐（第1档口+呱呱美食城店）", "shop_month_sale": 9999}, {"shop_name": "张亮麻辣烫（将台路店）", "shop_month_sale": 7645}]
+#     @@@
+#     """
+#     db = pool_mapmarkeronline.connection()
+#     cur = db.cursor()
+#     coordinate = request.args.get('coordinate')
+#     lat = str(coordinate).split(",")[1]
+#     lng = str(coordinate).split(",")[0]
+#     distance = request.args.get('distance')
+#     city = request.args.get('city')
+#     cate = request.args.get('cate')
+#     up_lat = float(lat) + 0.04
+#     down_lat = float(lat) - 0.04
+#     up_lng = float(lng) + 0.05
+#     down_lng = float(lng) - 0.05
+#     sql_food = "SELECT latitude,longitude,client_name,month_sale_num,own_second_cate from t_map_client_mt_%s_mark where update_time BETWEEN %s and %s and own_first_cate not in ('商店超市','果蔬生鲜','鲜花绿植','医药健康')  and latitude BETWEEN '%s' and  " \
+#                "'%s' and longitude BETWEEN '%s' and '%s' and own_second_cate='%s' order by month_sale_num desc" % (city, up_time, to_time, down_lat, up_lat, down_lng, up_lng,cate)
+#
+#     cur.execute(sql_food)
+#     results_food = cur.fetchall()
+#     food_info=[]
+#     for row in results_food:
+#         data={}
+#         dis = getDistance(float(row[0]), float(row[1]), float(lat), float(lng))
+#         if dis <= float(distance):
+#             data["shop_name"]=row[2]
+#             data["shop_month_sale"]=row[3]
+#             food_info.append(data)
+#
+#     jsondatar = json.dumps(food_info, ensure_ascii=False)
+#     db.close()
+#     return jsondatar
 
-    cur.execute(sql_food)
-    results_food = cur.fetchall()
-    food_info=[]
-    for row in results_food:
-        data={}
-        dis = getDistance(float(row[0]), float(row[1]), float(lat), float(lng))
-        if dis <= float(distance):
-            data["shop_name"]=row[2]
-            data["shop_month_sale"]=row[3]
-            food_info.append(data)
 
-    jsondatar = json.dumps(food_info, ensure_ascii=False)
-    db.close()
-    return jsondatar
+# 返回周边数据下周边配套数据
 
+@app.route('/api/getBaicInfo')
+def get_baic_info():
+    """返回周边数据下周边配套数据及商场、酒店、高校、医院详情
 
-# 返回周边数据
-@app.route('/getBaicInfo')
-def getBaicInfo():
+        @@@
+        #### 参数列表
+
+        | 参数 | 描述 | 类型 | 例子 |
+        |--------|--------|--------|--------|
+        |    coordinate    |    经纬度    |    string   |    116.494325,39.976051    |
+        |    distance    |    半径    |    string   |    1.5    |
+        |    city    |    城市    |    string   |    北京市   |
+
+        #### 字段解释
+
+        | 名称 | 描述 | 类型 |
+        |--------|--------|--------|--------|
+        |    baic_info    |    周边配套数量统计    |    object   |
+        |    └house_count    |    小区数量    |    int   |
+        |    └office_count    |    写字楼数量    |    int   |
+        |    └food_count    |    餐饮数量    |    int   |
+        |    └hospital_count    |    医院数量    |    int   |
+        |    └school_count    |    学校数量    |    int   |
+        |    └market_count    |    商场数量    |    int   |
+        |    └hotel_count    |    酒店数量    |    int   |
+        |    hotel_info[]    |    酒店列表    |    list   |
+        |    └hotel_name    |    酒店名称    |    string   |
+        |    └hotel_dis   |    酒店与所选点距离    |    double   |
+        |    market_info[]   |    商场列表    |    list   |
+        |    └market_name   |    商场名称    |    string   |
+        |    └market_dis   |    商场与所选点距离    |    double   |
+        |    school_info[]   |    学校列表    |    list   |
+        |    └school_name   |    学校名称    |    string   |
+        |    └school_dis   |    学校与所选点距离    |    double   |
+
+        #### return
+        - ##### json
+        > [{"hotel_info": [{{"hotel_name": "秋果酒店(798艺术区店)", "hotel_dis": 1.3007605484401805}, {"hotel_name": "北京酒仙酒店公寓", "hotel_dis": 1.1329057421469126}], "market_info": [{"market_name": "颐堤港", "market_dis": 0.7547364429446455}{"market_name": "北京华联(颐堤港超市)", "market_dis": 0.7700639203387806}], "baic_info": {"house_count": 66, "office_count": 48, "food_count": 505, "hospital_count": 5, "school_count": 1, "market_count": 12, "hotel_count": 35}, "school_info": [{"school_name": "北京信息职业技术学院", "school_dis": 1.0214379968385598}], "hospital_info": [{"hospital_name": "朝阳区将台地区将府家园社区卫生服务站", "hospital_dis": 0.8824207876096655}]}]
+        @@@
+        """
     db = pool_mapmarkeronline.connection()
     cur = db.cursor()
     coordinate = request.args.get('coordinate')
@@ -299,9 +412,9 @@ def getBaicInfo():
     baic_info['market_count'] = market_count
     baic_info['hotel_count'] = hotel_count
 
+    all_data['baic_info'] = baic_info
     all_data['hotel_info']=hotel_info
     all_data['market_info']=market_info
-    all_data['baic_info']=baic_info
     all_data['school_info']=school_info
     all_data['hospital_info']=hospital_info
 
@@ -312,8 +425,34 @@ def getBaicInfo():
 
 
 # 返回月销量统计
-@app.route('/getShopBasic')
-def getGreensFrom():
+@app.route('/api/getShopBasic')
+def get_shop_basic():
+    """返回写字楼详细列表
+
+            @@@
+            #### 参数列表
+
+            | 参数 | 描述 | 类型 | 例子 |
+            |--------|--------|--------|--------|
+            |    coordinate    |    经纬度    |    string   |    116.494325,39.976051    |
+            |    distance    |    半径    |    string   |    1.5    |
+            |    city    |    城市    |    string   |    beijing   |
+            |    platform    |    外卖平台（mt、elm）    |    string   |    elm   |
+
+            #### 字段解释
+
+            | 名称 | 描述 | 类型 |
+            |--------|--------|--------|--------|
+            |    city_sale_money    |    全城销量总数    |    int   |
+            |    dis_sale_money    |    区域商铺总数    |    int   |
+            |    dis_sale_count    |    区域销量总数   |    int   |
+            |    dis_ave_shop_sale    |    区域单店均销量    |    double   |
+
+            #### return
+            - ##### json
+            > [{"city_sale_money": 37508086, "dis_sale_money": 482470, "dis_sale_count": 422, "dis_ave_shop_sale": 1143.2938388625591}]
+            @@@
+            """
     db = pool_mapmarkeronline.connection()
     cur = db.cursor()
     city = request.args.get('city')
@@ -335,7 +474,6 @@ def getGreensFrom():
         month_sale = int(row[0])
         latitude: str = row[1]
         longitude = row[2]
-        # print(longitude)
         city_sale_money = city_sale_money + month_sale
         dis = getDistance(float(latitude), float(longitude), float(lat), float(lng))
         if dis <= float(distance):
@@ -353,8 +491,30 @@ def getGreensFrom():
 
 
 # 返回人均
-@app.route('/getAveMoney')
-def getAveMoney():
+@app.route('/api/getAveMoney')
+def get_ave_money():
+    """返回餐饮人均消费及月销量统计下的区域客单价
+        @@@
+        #### 参数列表
+
+        | 参数 | 描述 | 类型 | 例子 |
+        |--------|--------|--------|--------|
+        |    coordinate    |    经纬度    |    string   |    116.494325,39.976051    |
+        |    distance    |    半径    |    string   |    1.5    |
+        |    city    |    城市    |    string   |    beijing   |
+
+        #### 字段解释
+
+        | 名称 | 描述 | 类型 |
+        |--------|--------|--------|--------|
+        |    city_ave_shop_sale    |    北京人均    |    double   |
+        |    dis_ave_shop_sale    |    周边人均    |    double   |
+
+        #### return
+        - ##### json
+        > [{"city_ave_shop_sale": 23.536748880587783, "dis_ave_shop_sale": 26.49526066350711}]
+        @@@
+        """
     db = pool_mapmarkeronline.connection()
     cur = db.cursor()
     city = request.args.get('city')
@@ -379,8 +539,8 @@ def getAveMoney():
         # print(longitude)
         if average_price is None or average_price.strip() == '':
             average_price = '0'
-
-        city_sale_money = city_sale_money + average_price
+        average_price=float(average_price)
+        city_sale_money = city_sale_money + float(average_price)
         city_sale_count = city_sale_count + 1
         dis = getDistance(float(latitude), float(longitude), float(lat), float(lng))
         if dis <= float(distance):
@@ -398,8 +558,34 @@ def getAveMoney():
 
 
 # 返回周边品类榜
-@app.route('/getCate')
-def getMoney():
+@app.route('/api/getCate')
+def get_cate():
+    """返回周边品类榜
+
+        @@@
+        #### 参数列表
+
+        | 参数 | 参数解释 | 类型 | 例子 |
+        |--------|--------|--------|--------|
+        |    coordinate    |    经纬度    |    string   |    116.494325,39.976051    |
+        |    distance    |    半径    |    string   |    1.5    |
+        |    city    |    城市    |    string   |    北京市   |
+        |    platform    |    外卖平台（mt、elm）    |    string   |    elm   |
+
+        #### 字段解释
+
+        | 名称 | 解释 | 类型 |
+        |--------|--------|--------|--------|
+        |    cate_name    |    品类名称    |    string   |
+        |    cate_sum    |    该品类销售总单量    |    int   |
+        |    cate_count    |    该品类下商户数    |    int   |
+        |    cate_ave    |    该品类客单价    |    double   |
+
+        #### return
+        - ##### json
+        > [{"cate_name": "东北菜", "cate_sum": 18043, "cate_count": 10, "cate_ave": 27.8}, {"cate_name": "云南菜", "cate_sum": 1384, "cate_count": 3, "cate_ave": 40.0}]
+        @@@
+        """
     db = pool_mapmarkeronline.connection()
     cur = db.cursor()
     city = request.args.get('city')
@@ -408,15 +594,18 @@ def getMoney():
     lat = str(coordinate).split(",")[1]
     lng = str(coordinate).split(",")[0]
     distance = request.args.get('distance')
-    sql = "SELECT latitude,longitude,own_second_cate,month_sale_num FROM t_map_client_%s_%s_mark where update_time BETWEEN %s and %s and own_first_cate not in ('商店超市','果蔬生鲜','鲜花绿植','医药健康') " % (
-    platform, city, up_time, to_time)
+    up_lat = float(lat) + 0.04
+    down_lat = float(lat) - 0.04
+    up_lng = float(lng) + 0.05
+    down_lng = float(lng) - 0.05
+    sql = "SELECT latitude,longitude,own_second_cate,month_sale_num FROM t_map_client_%s_%s_mark where update_time BETWEEN %s and %s and own_first_cate not in ('商店超市','果蔬生鲜','鲜花绿植','医药健康') and latitude BETWEEN '%s' and  " \
+               "'%s' and longitude BETWEEN '%s' and '%s' " % (platform, city, up_time, to_time, down_lat, up_lat, down_lng, up_lng)
     cur.execute(sql)
     results = cur.fetchall()
 
     key_value = []
     data_value = []
     month_sale_list = {}
-
     for row in results:
         latitude = row[0]
         longitude = row[1]
@@ -428,17 +617,22 @@ def getMoney():
     month_sale_list['data'] = data_value
     df = pd.DataFrame(month_sale_list)
     kk = df.groupby(['key'], as_index=False)['data'].sum()
+    kk_count = df.groupby(['key'], as_index=False)['data'].count()
     sq = []
-    all_cate = {}
-    cate_sum = {}
+    cate_name=[]
+    cate_sum_list=[]
+    cate_count_list=[]
     for a in kk.values:
-        cate_sum[a[0]] = a[1]
+        cate_name.append(a[0])
+        cate_sum_list.append(a[1])
+    for a in kk_count.values:
+        cate_count_list.append(a[1])
 
     key_ave = []
     data_ave = []
     ave_list = {}
-    sql_ave = "SELECT latitude,longitude,own_second_cate,average_price FROM t_map_client_mt_%s_mark where update_time BETWEEN %s and %s and average_price is not null and own_first_cate not in ('商店超市','果蔬生鲜','鲜花绿植','医药健康') " % (
-    city, up_time, to_time)
+    sql_ave = "SELECT latitude,longitude,own_second_cate,average_price FROM t_map_client_mt_%s_mark where update_time BETWEEN %s and %s and average_price is not null and own_first_cate not in ('商店超市','果蔬生鲜','鲜花绿植','医药健康') and latitude BETWEEN '%s' and  " \
+               "'%s' and longitude BETWEEN '%s' and '%s' " % (city, up_time, to_time, down_lat, up_lat, down_lng, up_lng)
     cur.execute(sql_ave)
     results_ave = cur.fetchall()
     for row in results_ave:
@@ -452,23 +646,52 @@ def getMoney():
     ave_list['data_ave'] = data_ave
     df = pd.DataFrame(ave_list)
     kk_ave = df.groupby(['key_ave'], as_index=False)['data_ave'].mean()
-
-    cate_ave = {}
+    cate_ave = []
     for a in kk_ave.values:
-        cate_ave[a[0]] = a[1]
+        cate_ave.append(a[1])
 
-    all_cate['cate_sum'] = cate_sum
-    all_cate['cate_ave'] = cate_ave
-
-    sq.append(all_cate)
+    zipd = list(zip(cate_name, cate_sum_list, cate_count_list,cate_ave))
+    for row in zipd:
+        all_cate = {}
+        all_cate['cate_name'] = row[0]
+        all_cate['cate_sum'] = row[1]
+        all_cate['cate_count'] = row[2]
+        all_cate['cate_ave'] = row[3]
+        sq.append(all_cate)
     jsondatar = json.dumps(sq, ensure_ascii=False)
     db.close()
     return jsondatar
 
 
 # 返回菜品销量榜
-@app.route('/getFood')
-def getFood():
+@app.route('/api/getFood')
+def get_food():
+    """返回菜品月度销量榜
+
+        @@@
+        #### 参数列表
+
+        | 参数 | 参数解释 | 类型 | 例子 | 备注 |
+        |--------|--------|--------|--------|--------|
+        |    coordinate    |    经纬度    |    string   |    116.494325,39.976051    |       |
+        |    distance    |    半径    |    string   |    1.5    |       |
+        |    city    |    城市    |    string   |    北京市   |       |
+        |    platform    |    外卖平台（mt、elm）    |    string   |    elm   |       |
+        |    cate    |    品类    |    string   |    东北菜   |    需要从周边品类榜中获取   |
+
+        #### 字段解释
+
+        | 名称 | 解释 | 类型 |
+        |--------|--------|--------|--------|
+        |    food_name    |    菜品名称    |    string   |
+        |    food_sale_num    |    菜品销量    |    string   |
+
+
+        #### return
+        - ##### json
+        > [{"food_name": "春饼", "food_sale_num": "24000"}, {"food_name": "玉米渣粥", "food_sale_num": "14000"}]
+        @@@
+        """
     db = pool_mapmarkeronline.connection()
     cur = db.cursor()
     city = request.args.get('city')
@@ -499,18 +722,48 @@ def getFood():
     cur.execute(sql_food)
     results_food = cur.fetchall()
     sq = []
-    food_dicr = {}
+
     for a in results_food:
-        food_dicr[a[0]] = str(a[1])
-    sq.append(food_dicr)
+        food_dicr = {}
+        food_dicr['food_name']=a[0]
+        food_dicr['food_sale_num']=str(a[1])
+        sq.append(food_dicr)
     jsondatar = json.dumps(sq, ensure_ascii=False)
     db.close()
     return jsondatar
 
 
 # 返回销售趋势
-@app.route('/getLineChart')
-def getLineChart():
+@app.route('/api/getLineChart')
+def get_line_chart():
+    """返回周边数据、门店数据下销售趋势
+
+        @@@
+        #### 参数列表
+
+        | 参数 | 参数解释 | 类型 | 例子 | 备注 |
+        |--------|--------|--------|--------|--------|
+        |    coordinate    |    经纬度    |    string   |    116.494325,39.976051    |       |
+        |    distance    |    半径    |    string   |    1.5    |       |
+        |    city    |    城市    |    string   |    北京市   |       |
+        |    platform    |    外卖平台（mt、elm）    |    string   |    elm   |       |
+        |    project_id    |    项目id    |    string   |    东北菜   |    需要从周边品类榜中获取   |
+
+        #### 字段解释
+
+        | 名称 | 解释 | 类型 |
+        |--------|--------|--------|--------|
+        |    month    |    月份    |    string   |
+        |    city_sale_num    |    全城单商户月均销量    |    string   |
+        |    dis_sale_num    |    区域单商户月均销量  |    doublo   |
+        |    dis_sale_num    |    门店单商户月均销量    |    double   |
+
+        #### return
+        - ##### json
+        > [{"month": "4月", "city_sale_num": "719.5404", "dis_sale_num": 862.672932330827, "xmxc_sale_num": 4902.0}]
+        @@@
+        """
+
     db = pool_mapmarkeronline.connection()
     sta_db=pool_statistics.connection()
     cur_sta=sta_db.cursor()
@@ -529,21 +782,23 @@ def getLineChart():
     cur.execute(get_update_sql)
     results_get_update = cur.fetchall()
     last_month_update_count = results_get_update[0][0]
-    print(last_month_update_count)
     six_month_update_count = last_month_update_count - 5
     get_city_sql = "SELECT update_count,AVG(month_sale_num) from t_map_client_%s_%s_mark where update_count between %s and %s   and own_first_cate not in ('商店超市','果蔬生鲜','鲜花绿植','医药健康') GROUP BY update_count" % (
     platform, city, six_month_update_count,last_month_update_count)
     cur.execute(get_city_sql)
     results_city = cur.fetchall()
-    city_data = {}
+    month_list=[]
+    city_list=[]
+    dis_shop_list=[]
+
     for row in results_city:
 
         if platform == 'elm':
             city_month = str(int(row[0]) - 3) + '月'
         else:
             city_month = str(row[0]) + '月'
-
-        city_data[city_month] = str(row[1])
+        month_list.append(city_month)
+        city_list.append(str(row[1]))
 
     up_lat = float(lat) + 0.04
     down_lat = float(lat) - 0.04
@@ -579,32 +834,62 @@ def getLineChart():
              "LEFT (stream_date, 6) ) a GROUP BY a.date" %(project_id,shop_to_time,shop_end_time)
     cur_sta.execute(sql_shop)
     results_cur=cur_sta.fetchall()
-    shop_dict={}
+
+    xmxc_list = []
     for row in results_cur:
         shop_ave=0.0
         if int(row[2]>0):
             shop_ave=float(row[1])/int(row[2])
-        shop_data=str(int(row[3]))+'月'
-        shop_dict[shop_data]=shop_ave
+        xmxc_list.append(shop_ave)
 
     sq = []
-    all_data = {}
-    dis_data = {}
+
     for a in kk.values:
-        dis_data[a[0]] = a[1]
+        dis_shop_list.append(a[1])
+    da=list(zip(month_list,city_list,dis_shop_list,xmxc_list))
 
-    all_data['city_data'] = city_data
-    all_data['dis_data'] = dis_data
-    all_data['shop_data'] = shop_dict
+    for a in da:
+        all_data = {}
+        all_data['month']=a[0]
+        all_data['city_sale_num']=a[1]
+        all_data['dis_sale_num']=a[2]
+        all_data['xmxc_sale_num']=a[3]
+        sq.append(all_data)
 
-    sq.append(all_data)
     jsondatar = json.dumps(sq, ensure_ascii=False)
     db.close()
     return jsondatar
 
+#返回周边数据、门店数据下销售趋势
+@app.route('/api/getBaicDetails')
+def get_baic_details():
+    """返回周边数据、门店数据下销售趋势
 
-@app.route('/getBaicDetails')
-def getBaicDetails():
+            @@@
+            #### 参数列表
+
+            | 参数 | 参数解释 | 类型 | 例子 | 备注 |
+            |--------|--------|--------|--------|--------|
+            |    coordinate    |    经纬度    |    string   |    116.494325,39.976051    |       |
+            |    distance    |    半径    |    string   |    1.5    |       |
+            |    city    |    城市    |    string   |    北京市   |       |
+            |    platform    |    外卖平台（mt、elm）    |    string   |    elm   |       |
+            |    project_id    |    项目id    |    string   |    东北菜   |    需要从周边品类榜中获取   |
+
+            #### 字段解释
+
+            | 名称 | 解释 | 类型 |
+            |--------|--------|--------|--------|
+            |    month    |    月份    |    string   |
+            |    city_sale_num    |    全城单商户月均销量    |    string   |
+            |    dis_sale_num    |    区域单商户月均销量  |    doublo   |
+            |    dis_sale_num    |    门店单商户月均销量    |    double   |
+
+            #### return
+            - ##### json
+            > [{"month": "4月", "city_sale_num": "719.5404", "dis_sale_num": 862.672932330827, "xmxc_sale_num": 4902.0}]
+            @@@
+    """
     db = pool_mapmarkeronline.connection()
     cur = db.cursor()
     platform = request.args.get('platform')
@@ -651,8 +936,33 @@ def getBaicDetails():
 
 
 # 获得品类下详细菜品
-@app.route('/getCateShop')
-def getCateShop():
+@app.route('/api/getCateShop')
+def get_cate_shop():
+    """返回周边配套餐饮商户名单
+
+    @@@
+    #### 参数列表
+
+    | 参数 | 描述 | 类型 | 例子 | 备注 |
+    |--------|--------|--------|--------|--------|
+    |    coordinate    |    经纬度    |    string   |    116.494325,39.976051    |       |
+    |    distance    |    半径    |    string   |    1.5    |       |
+    |    city    |    城市    |    string   |    beijing   |       |
+    |    cate    |    品类    |    string   |    东北菜   |    需要从周边品类榜中获取   |
+    |    platform    |    外卖平台（elm、mt）    |    string   |    mt   |       |
+
+    #### 字段解释
+
+    | 名称 | 描述 | 类型 |
+    |--------|--------|--------|--------|
+    |    shop_name    |    商户名称    |    string   |
+    |    shop_month_sale    |    商户月销量    |    int   |
+
+    #### return
+    - ##### json
+    > [{"shop_name": "川湘快餐（第1档口+呱呱美食城店）", "shop_month_sale": 9999}, {"shop_name": "张亮麻辣烫（将台路店）", "shop_month_sale": 7645}]
+    @@@
+    """
     db = pool_mapmarkeronline.connection()
     cur = db.cursor()
     platform = request.args.get('platform')
@@ -682,8 +992,34 @@ def getCateShop():
 
 
 # 获取竞对数据
-@app.route('/getRace')
-def getRace():
+@app.route('/api/getRace')
+def get_race():
+    """获取竞对数据
+
+    @@@
+    #### 参数列表
+
+    | 参数 | 描述 | 类型 | 例子 | 备注 |
+    |--------|--------|--------|--------|--------|
+    |    coordinate    |    经纬度    |    string   |    116.494325,39.976051    |       |
+    |    distance    |    半径    |    string   |    1.5    |       |
+
+    #### 字段解释
+
+    | 名称 | 描述 | 类型 |
+    |--------|--------|--------|--------|
+    |    mark_name    |    商户名称    |    string   |
+    |    area    |    面积    |    string   |
+    |    stall_num    |    档口数    |    string   |
+    |    seat_num    |    座位数    |    string   |
+    |    month_rant    |    档口租金    |    string   |
+    |    entry_fee    |    进场费    |    string   |
+
+    #### return
+    - ##### json
+    > [{"mark_name": "餐行者美食广场", "area": null, "stall_num": 19, "seat_num": "10", "month_rant": "8000-08-25 00:00:00", "entry_fee": "20000/8-25"}]
+    @@@
+    """
     db = pool_mapmarkeronline.connection()
     cur = db.cursor()
     coordinate = request.args.get('coordinate')
@@ -715,8 +1051,30 @@ def getRace():
 
 
 # 返回项目列表
-@app.route('/getProjectList')
-def getProjectList():
+@app.route('/api/getProjectList')
+def get_project_list():
+    """获取竞对数据
+
+    @@@
+    #### 参数列表
+
+    | 参数 | 描述 | 类型 | 例子 | 备注 |
+    |--------|--------|--------|--------|--------|
+    |    无    |        |       |       |       |
+
+
+    #### 字段解释
+
+    | 名称 | 描述 | 类型 |
+    |--------|--------|--------|--------|
+    |    project_id    |    项目id    |    long   |
+    |    project_name    |    项目名称    |    string   |
+
+    #### return
+    - ##### json
+    > [{"project_id": 1548233981349868, "project_name": "自空间"}, {"project_id": 1548233981574173, "project_name": "铸诚大厦"}]
+    @@@
+    """
     db = pool_project.connection()
     cur = db.cursor()
     sql = "SELECT project_id,project_name from project where status=2"
@@ -736,8 +1094,31 @@ def getProjectList():
 
 
 # 返回档口统计数据
-@app.route('/getStalls')
-def getStalls():
+@app.route('/api/getStalls')
+def get_stalls():
+    """查看项目下档口统计
+
+    @@@
+    #### 参数列表
+
+    | 参数 | 描述 | 类型 | 例子 | 备注 |
+    |--------|--------|--------|--------|--------|
+    |    project_id    |    项目id    |    string   |    1548233985051132    |       |
+
+    #### 字段解释
+
+    | 名称 | 描述 | 类型 |
+    |--------|--------|--------|--------|
+    |    on_business    |    营业中档口    |    int   |
+    |    empty    |    空档口    |    int   |
+    |    empty    |    新商户    |    int   |
+
+
+    #### return
+    - ##### json
+    > [{"on_business": 10, "empty": 2, "new_shop": 0}]
+    @@@
+    """
     db = pool_project.connection()
     cur = db.cursor()
     project_id = request.args.get("project_id")
@@ -775,8 +1156,38 @@ def getStalls():
 
 
 #返回商户信息
-@app.route('/getXmxcShop')
-def getXmxcShop():
+@app.route('/api/getXmxcShop')
+def get_xmxc_shop():
+    """查看门店数据
+
+    @@@
+    #### 参数列表
+
+    | 参数 | 描述 | 类型 | 例子 | 备注 |
+    |--------|--------|--------|--------|--------|
+    |    project_id    |    项目id    |    string   |    1548233985051132    |       |
+
+    #### 字段解释
+
+    | 名称 | 描述 | 类型 |
+    |--------|--------|--------|--------|
+    |    all_order_count    |    门店总单量    |    string   |
+    |    all_all_money    |    门店总金额    |    string   |
+    |    ave_shop    |    门店客单价    |    string   |
+    |    shop_list[]    |    月度商户排行榜    |    list   |
+    |    └merchant_name    |    商户名称    |    string   |
+    |    └order_count    |    月销量    |    int   |
+    |    └proportion    |    商户单量占比    |    double   |
+    |    cate_list    |    月度品类榜    |    list   |
+    |    └cate_name    |    品类名称    |    string   |
+    |    └cate_count    |     品类销售单量   |    string   |
+    |    └cate_ave    |    品类占比    |    string   |
+
+
+    #### return
+    - ##### json
+    > [{"all_order_count": "40007", "all_all_money": "813530.04", "ave_shop": "20.334692428824958"}, "shop_list": [{"merchant_name": "轻盒有机", "order_count": 3218, "proportion": 0.08043592371335016}], "cate_list": [{"cate_name": "沙拉", "cate_count": "7194", "cate_ave": "0.1798185317569425350563651361"}]}]
+    @@@"""
     db=pool_statistics.connection()
     cur=db.cursor()
     project_id=request.args.get("project_id")
@@ -842,6 +1253,8 @@ def getXmxcShop():
     jsondu=json.dumps(all_json,ensure_ascii=False)
     return jsondu
 
+app.register_blueprint(api, url_prefix='/')
+app.register_blueprint(platform, url_prefix='/platform')
 
 if __name__ == '__main__':
     # app.run(debug=True)
