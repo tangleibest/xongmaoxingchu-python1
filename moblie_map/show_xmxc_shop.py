@@ -5,13 +5,14 @@ from DBUtils.PooledDB import PooledDB
 from flask import Flask, request,Blueprint
 from flask_docs import ApiDoc
 import pymysql
+from flask_cors import *
 import json
 import time
 import datetime
 import pandas as pd
 
 app = Flask(__name__)
-
+CORS(app, supports_credentials=True)
 app.config['API_DOC_MEMBER'] = ['api', 'platform']
 
 ApiDoc(app)
@@ -51,8 +52,8 @@ def getDistance(lat1, lng1, lat2, lng2):
 pool_mapmarkeronline = PooledDB(pymysql, 5, host='bj-cdb-cwu7v42u.sql.tencentcdb.com', user='root', passwd='xmxc1234',
                                 db='mapmarkeronline', port=62864)
 
-pool_project = PooledDB(pymysql, 5, host='39.104.130.52', user='root', passwd='xmxc1234', db='commerce',
-                        port=3520)
+pool_project = PooledDB(pymysql, 5, host='rm-hp364ebpsp6649ra0bo.mysql.huhehaote.rds.aliyuncs.com', user='tanglei', passwd='tanglei', db='commerce',
+                        port=3306)
 
 pool_statistics = PooledDB(pymysql, 5, host='39.104.130.52', user='root', passwd='xmxc1234', db='statistics',
                         port=3520)
@@ -113,8 +114,8 @@ def get_office_info():
     for row in results:
         data = {}
         b_name = row[0]
-        longitude = row[2]
-        latitude = row[3]
+        longitude = row[1]
+        latitude = row[2]
         dis = getDistance(float(latitude), float(longitude), float(lat), float(lng))
         if dis <= float(distance):
             # office_count=office_count+1
@@ -257,7 +258,7 @@ def get_baic_info():
         |--------|--------|--------|--------|
         |    coordinate    |    经纬度    |    string   |    116.494325,39.976051    |
         |    distance    |    半径    |    string   |    1.5    |
-        |    city    |    城市    |    string   |    北京市   |
+        |    city    |    城市    |    string   |    beijing   |
 
         #### 字段解释
 
@@ -651,7 +652,9 @@ def get_cate():
         cate_ave.append(a[1])
 
     zipd = list(zip(cate_name, cate_sum_list, cate_count_list,cate_ave))
-    for row in zipd:
+    print(zipd)
+    v = sorted(zipd, key=(lambda x: x[1]), reverse=True)
+    for row in v:
         all_cate = {}
         all_cate['cate_name'] = row[0]
         all_cate['cate_sum'] = row[1]
@@ -675,7 +678,7 @@ def get_food():
         |--------|--------|--------|--------|--------|
         |    coordinate    |    经纬度    |    string   |    116.494325,39.976051    |       |
         |    distance    |    半径    |    string   |    1.5    |       |
-        |    city    |    城市    |    string   |    北京市   |       |
+        |    city    |    城市    |    string   |    beijing   |       |
         |    platform    |    外卖平台（mt、elm）    |    string   |    elm   |       |
         |    cate    |    品类    |    string   |    东北菜   |    需要从周边品类榜中获取   |
 
@@ -874,7 +877,7 @@ def get_baic_details():
             |    distance    |    半径    |    string   |    1.5    |       |
             |    city    |    城市    |    string   |    北京市   |       |
             |    platform    |    外卖平台（mt、elm）    |    string   |    elm   |       |
-            |    project_id    |    项目id    |    string   |    东北菜   |    需要从周边品类榜中获取   |
+            |    project_id    |    项目id    |    string   |    1548233981574173   |    需要从场地列表获取   |
 
             #### 字段解释
 
@@ -949,7 +952,6 @@ def get_cate_shop():
     |    distance    |    半径    |    string   |    1.5    |       |
     |    city    |    城市    |    string   |    beijing   |       |
     |    cate    |    品类    |    string   |    东北菜   |    需要从周边品类榜中获取   |
-    |    platform    |    外卖平台（elm、mt）    |    string   |    mt   |       |
 
     #### 字段解释
 
@@ -957,6 +959,7 @@ def get_cate_shop():
     |--------|--------|--------|--------|
     |    shop_name    |    商户名称    |    string   |
     |    shop_month_sale    |    商户月销量    |    int   |
+    |    average_price    |    人均    |    string   |
 
     #### return
     - ##### json
@@ -965,15 +968,14 @@ def get_cate_shop():
     """
     db = pool_mapmarkeronline.connection()
     cur = db.cursor()
-    platform = request.args.get('platform')
     cate = request.args.get('cate')
     coordinate = request.args.get('coordinate')
     lat = str(coordinate).split(",")[1]
     lng = str(coordinate).split(",")[0]
     distance = request.args.get('distance')
     city = request.args.get('city')
-    sql = "SELECT client_name,month_sale_num,latitude,longitude from t_map_client_%s_%s_mark where update_time BETWEEN %s and %s and own_first_cate not in ('商店超市','果蔬生鲜','鲜花绿植','医药健康') " \
-          "and own_second_cate='%s' order by month_sale_num desc" % (platform, city, up_time, to_time, cate)
+    sql = "SELECT client_name,month_sale_num,latitude,longitude,average_price from t_map_client_mt_%s_mark where update_time BETWEEN %s and %s and own_first_cate not in ('商店超市','果蔬生鲜','鲜花绿植','医药健康') " \
+          "and own_second_cate='%s' order by month_sale_num desc" % (city, up_time, to_time, cate)
     cur.execute(sql)
     reultes = cur.fetchall()
     sql_list = []
@@ -985,6 +987,7 @@ def get_cate_shop():
         if dis <= float(distance):
             data['shop_name'] = row[0]
             data['month_sale'] = row[1]
+            data['average_price'] = row[2]
             sql_list.append(data)
     jsondatar = json.dumps(sql_list, ensure_ascii=False)
     db.close()
@@ -999,10 +1002,10 @@ def get_race():
     @@@
     #### 参数列表
 
-    | 参数 | 描述 | 类型 | 例子 | 备注 |
-    |--------|--------|--------|--------|--------|
-    |    coordinate    |    经纬度    |    string   |    116.494325,39.976051    |       |
-    |    distance    |    半径    |    string   |    1.5    |       |
+    | 参数 | 描述 | 类型 | 例子 |
+    |--------|--------|--------|--------|
+    |    coordinate    |    经纬度    |    string   |    116.494325,39.976051    |
+    |    distance    |    半径    |    string   |    1.5    |
 
     #### 字段解释
 
@@ -1053,15 +1056,14 @@ def get_race():
 # 返回项目列表
 @app.route('/api/getProjectList')
 def get_project_list():
-    """获取竞对数据
+    """获取门店列表
 
     @@@
     #### 参数列表
 
-    | 参数 | 描述 | 类型 | 例子 | 备注 |
-    |--------|--------|--------|--------|--------|
-    |    无    |        |       |       |       |
-
+    | 参数 | 描述 | 类型 | 例子 |
+    |--------|--------|--------|--------|
+    |    city_id    |    城市id （1：北京，2：上海，3：杭州，4：深圳）   |   string    |   1    |
 
     #### 字段解释
 
@@ -1069,15 +1071,29 @@ def get_project_list():
     |--------|--------|--------|--------|
     |    project_id    |    项目id    |    long   |
     |    project_name    |    项目名称    |    string   |
+    |    address    |    地址    |    string   |
+    |    latitude    |    纬度    |    string   |
+    |    longitude    |    经度    |    string   |
 
     #### return
     - ##### json
-    > [{"project_id": 1548233981349868, "project_name": "自空间"}, {"project_id": 1548233981574173, "project_name": "铸诚大厦"}]
+    > [{"project_id": 1548233981349868, "project_name": "自空间", "address": "北京市朝阳区石门东路", "latitude": "39.9028700000000000", "longitude": "116.5030800000000000"}]
     @@@
     """
     db = pool_project.connection()
     cur = db.cursor()
-    sql = "SELECT project_id,project_name from project where status=2"
+    city_id = request.args.get('city_id')
+    city_name=''
+    if city_id=='1':
+        city_name='北京'
+    elif city_id=='2':
+        city_name='上海'
+    elif city_id=='3':
+        city_name='杭州'
+    elif city_id=='4':
+        city_name='深圳'
+    sql = "SELECT a.project_id,a.project_name,b.address,b.latitude,b.longitude from project a LEFT JOIN development.project_base_info b on a.project_id=b.tid WHERE a.area_name='%s'" %city_name
+
     cur.execute(sql)
     results = cur.fetchall()
     sq = []
@@ -1085,8 +1101,14 @@ def get_project_list():
         data = {}
         project_name = row[1]
         project_id = row[0]
+        address = row[2]
+        latitude = str(row[3])
+        longitude = str(row[4])
         data['project_id'] = project_id
         data['project_name'] = project_name
+        data['address'] = address
+        data['latitude'] = latitude
+        data['longitude'] = longitude
         sq.append(data)
     jsondu = json.dumps(sq, ensure_ascii=False)
     pool_project.close()
@@ -1101,9 +1123,9 @@ def get_stalls():
     @@@
     #### 参数列表
 
-    | 参数 | 描述 | 类型 | 例子 | 备注 |
-    |--------|--------|--------|--------|--------|
-    |    project_id    |    项目id    |    string   |    1548233985051132    |       |
+    | 参数 | 描述 | 类型 | 例子 |
+    |--------|--------|--------|--------|
+    |    project_id    |    项目id    |    string   |    1548233985051132    |
 
     #### 字段解释
 
@@ -1163,9 +1185,9 @@ def get_xmxc_shop():
     @@@
     #### 参数列表
 
-    | 参数 | 描述 | 类型 | 例子 | 备注 |
+    | 参数 | 描述 | 类型 | 例子 |
     |--------|--------|--------|--------|--------|
-    |    project_id    |    项目id    |    string   |    1548233985051132    |       |
+    |    project_id    |    项目id    |    string   |    1548233985051132    |
 
     #### 字段解释
 
@@ -1258,4 +1280,4 @@ app.register_blueprint(platform, url_prefix='/platform')
 
 if __name__ == '__main__':
     # app.run(debug=True)
-    app.run(host="127.0.0.1", port=5000, debug=True)
+    app.run(host="169.254.230.2", port=5001, debug=True)
