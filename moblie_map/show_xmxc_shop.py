@@ -428,7 +428,7 @@ def get_baic_info():
 # 返回月销量统计
 @app.route('/api/getShopBasic')
 def get_shop_basic():
-    """返回写字楼详细列表
+    """月销量统计
 
             @@@
             #### 参数列表
@@ -445,8 +445,8 @@ def get_shop_basic():
             | 名称 | 描述 | 类型 |
             |--------|--------|--------|--------|
             |    city_sale_money    |    全城销量总数    |    int   |
-            |    dis_sale_money    |    区域商铺总数    |    int   |
-            |    dis_sale_count    |    区域销量总数   |    int   |
+            |    dis_sale_money    |    区域销量总数    |    int   |
+            |    dis_sale_count    |    区域商铺总数   |    int   |
             |    dis_ave_shop_sale    |    区域单店均销量    |    double   |
 
             #### return
@@ -719,9 +719,11 @@ def get_food():
             shop_id = row[2]
             str_shop_id = str_shop_id + "'" + shop_id + "',"
     str_shop_id = str_shop_id.strip(',')
-
-    sql_food = "SELECT food_name,SUM(month_sale) sum_sale from t_map_client_%s_%s_mark_food where month_sale is not null and update_count=%s and client_id in (%s) GROUP BY food_name order by sum_sale desc limit 50" % (
-    platform, city, update_count, str_shop_id)
+    sql_food=''
+    if platform =='mt':
+        sql_food = "SELECT food_name,SUM(month_sale) sum_sale from t_map_client_%s_%s_mark_food where month_sale is not null and update_count=%s and client_id in (%s) GROUP BY food_name order by sum_sale desc limit 50" % (platform, city, update_count, str_shop_id)
+    elif platform =='elm':
+        sql_food = "SELECT food_name,SUM(month_sale) sum_sale from t_map_client_%s_%s_mark_food where month_sale is not null and update_count=%s and shop_id in (%s) GROUP BY food_name order by sum_sale desc limit 50" % (platform, city, update_count, str_shop_id)
     cur.execute(sql_food)
     results_food = cur.fetchall()
     sq = []
@@ -748,9 +750,9 @@ def get_line_chart():
         |--------|--------|--------|--------|--------|
         |    coordinate    |    经纬度    |    string   |    116.494325,39.976051    |       |
         |    distance    |    半径    |    string   |    1.5    |       |
-        |    city    |    城市    |    string   |    北京市   |       |
+        |    city    |    城市    |    string   |    beijing   |       |
         |    platform    |    外卖平台（mt、elm）    |    string   |    elm   |       |
-        |    project_id    |    项目id    |    string   |    东北菜   |    需要从周边品类榜中获取   |
+        |    project_id    |    项目id    |    string   |    1548233981574173   |       |
 
         #### 字段解释
 
@@ -773,15 +775,16 @@ def get_line_chart():
     cur = db.cursor()
     city = request.args.get('city')
     platform = request.args.get('platform')
+
     coordinate = request.args.get('coordinate')
     lat = str(coordinate).split(",")[1]
     lng = str(coordinate).split(",")[0]
     distance = request.args.get('distance')
     project_id = request.args.get('project_id')
+
     shop_to_time = datetime.date(datetime.date.today().year, datetime.date.today().month - 6, 1).strftime('%Y%m%d')
     shop_end_time = str(datetime.date(datetime.date.today().year,datetime.date.today().month,1)-datetime.timedelta(1)).replace('-','')
-    get_update_sql = "SELECT update_count FROM t_map_client_%s_%s_mark where update_time BETWEEN %s and %s limit 1" % (
-        platform, city, up_time, to_time)
+    get_update_sql = "SELECT update_count FROM t_map_client_%s_%s_mark where update_time BETWEEN %s and %s limit 1" % (platform, city, up_time, to_time)
     cur.execute(get_update_sql)
     results_get_update = cur.fetchall()
     last_month_update_count = results_get_update[0][0]
@@ -831,111 +834,120 @@ def get_line_chart():
     dis_dict['data'] = dis_month_sale
     df = pd.DataFrame(dis_dict)
     kk = df.groupby(['key'], as_index=False)['data'].mean()
-
-    sql_shop="SELECT a.project_id, SUM(a.sum_order_count), COUNT(1), RIGHT(a.date,2)  FROM ( SELECT  project_id,  merchant_name,  SUM(order_count) sum_order_count, " \
-             " LEFT (stream_date, 6) date FROM  merchant_statistics WHERE  project_id = %s AND stream_date BETWEEN '%s' and '%s' GROUP BY  merchant_id," \
-             "LEFT (stream_date, 6) ) a GROUP BY a.date" %(project_id,shop_to_time,shop_end_time)
-    cur_sta.execute(sql_shop)
-    results_cur=cur_sta.fetchall()
-
-    xmxc_list = []
-    for row in results_cur:
-        shop_ave=0.0
-        if int(row[2]>0):
-            shop_ave=float(row[1])/int(row[2])
-        xmxc_list.append(shop_ave)
-
     sq = []
-
     for a in kk.values:
         dis_shop_list.append(a[1])
-    da=list(zip(month_list,city_list,dis_shop_list,xmxc_list))
 
-    for a in da:
-        all_data = {}
-        all_data['month']=a[0]
-        all_data['city_sale_num']=a[1]
-        all_data['dis_sale_num']=a[2]
-        all_data['xmxc_sale_num']=a[3]
-        sq.append(all_data)
+    if project_id is not None:
+        sql_shop="SELECT a.project_id, SUM(a.sum_order_count), COUNT(1), RIGHT(a.date,2)  FROM ( SELECT  project_id,  merchant_name,  SUM(order_count) sum_order_count, " \
+             " LEFT (stream_date, 6) date FROM  merchant_statistics WHERE  project_id = %s AND stream_date BETWEEN '%s' and '%s' GROUP BY  merchant_id," \
+             "LEFT (stream_date, 6) ) a GROUP BY a.date" %(project_id,shop_to_time,shop_end_time)
+        cur_sta.execute(sql_shop)
+        results_cur=cur_sta.fetchall()
+
+        xmxc_list = []
+        for row in results_cur:
+            shop_ave=0.0
+            if int(row[2]>0):
+                shop_ave=float(row[1])/int(row[2])
+            xmxc_list.append(shop_ave)
+
+        da=list(zip(month_list,city_list,dis_shop_list,xmxc_list))
+
+        for a in da:
+                all_data = {}
+                all_data['month']=a[0]
+                all_data['city_sale_num']=a[1]
+                all_data['dis_sale_num']=a[2]
+                all_data['xmxc_sale_num']=a[3]
+                sq.append(all_data)
+    elif project_id is None:
+        da = list(zip(month_list, city_list, dis_shop_list))
+
+        for a in da:
+            all_data = {}
+            all_data['month'] = a[0]
+            all_data['city_sale_num'] = a[1]
+            all_data['dis_sale_num'] = a[2]
+            sq.append(all_data)
 
     jsondatar = json.dumps(sq, ensure_ascii=False)
     db.close()
     return jsondatar
 
 #返回周边数据、门店数据下销售趋势
-@app.route('/api/getBaicDetails')
-def get_baic_details():
-    """返回周边数据、门店数据下销售趋势
-
-            @@@
-            #### 参数列表
-
-            | 参数 | 参数解释 | 类型 | 例子 | 备注 |
-            |--------|--------|--------|--------|--------|
-            |    coordinate    |    经纬度    |    string   |    116.494325,39.976051    |       |
-            |    distance    |    半径    |    string   |    1.5    |       |
-            |    city    |    城市    |    string   |    北京市   |       |
-            |    platform    |    外卖平台（mt、elm）    |    string   |    elm   |       |
-            |    project_id    |    项目id    |    string   |    1548233981574173   |    需要从场地列表获取   |
-
-            #### 字段解释
-
-            | 名称 | 解释 | 类型 |
-            |--------|--------|--------|--------|
-            |    month    |    月份    |    string   |
-            |    city_sale_num    |    全城单商户月均销量    |    string   |
-            |    dis_sale_num    |    区域单商户月均销量  |    doublo   |
-            |    dis_sale_num    |    门店单商户月均销量    |    double   |
-
-            #### return
-            - ##### json
-            > [{"month": "4月", "city_sale_num": "719.5404", "dis_sale_num": 862.672932330827, "xmxc_sale_num": 4902.0}]
-            @@@
-    """
-    db = pool_mapmarkeronline.connection()
-    cur = db.cursor()
-    platform = request.args.get('platform')
-    coordinate = request.args.get('coordinate')
-    lat = str(coordinate).split(",")[1]
-    lng = str(coordinate).split(",")[0]
-    distance = request.args.get('distance')
-    city = request.args.get('city')
-    sql_food = "SELECT own_second_cate,month_sale_num,latitude,longitude from t_map_client_%s_%s_mark where update_time BETWEEN %s and %s and " \
-               "own_first_cate not in ('商店超市','果蔬生鲜','鲜花绿植','医药健康')" % (platform, city, up_time, to_time)
-    cur.execute(sql_food)
-    results = cur.fetchall()
-    cate_name_list = []
-    cate_sum_list = []
-    cate_dict = {}
-    for row in results:
-
-        latitude = row[2]
-        longitude = row[3]
-        dis = getDistance(float(latitude), float(longitude), float(lat), float(lng))
-        if dis <= float(distance):
-            cate_name_list.append(row[0])
-            cate_sum_list.append(row[1])
-    cate_dict['key'] = cate_name_list
-    cate_dict['data'] = cate_sum_list
-    df = pd.DataFrame(cate_dict)
-    kk_sum = df.groupby(['key'], as_index=False)['data'].sum()
-    kk_count = df.groupby(['key'], as_index=False)['data'].count()
-
-    sq = []
-    all_data = {}
-    dis_sum = {}
-    dis_count = {}
-    for a in kk_sum.values:
-        dis_sum[a[0]] = a[1]
-    for a in kk_count.values:
-        dis_count[a[0]] = a[1]
-    all_data['count'] = dis_count
-    all_data['sum'] = dis_sum
-    sq.append(all_data)
-    jsondatar = json.dumps(sq, ensure_ascii=False)
-    db.close()
-    return jsondatar
+# @app.route('/api/getBaicDetails')
+# def get_baic_details():
+#     """返回周边数据、门店数据下销售趋势
+#
+#             @@@
+#             #### 参数列表
+#
+#             | 参数 | 参数解释 | 类型 | 例子 | 备注 |
+#             |--------|--------|--------|--------|--------|
+#             |    coordinate    |    经纬度    |    string   |    116.494325,39.976051    |       |
+#             |    distance    |    半径    |    string   |    1.5    |       |
+#             |    city    |    城市    |    string   |    北京市   |       |
+#             |    platform    |    外卖平台（mt、elm）    |    string   |    elm   |       |
+#             |    project_id    |    项目id    |    string   |    1548233981574173   |    需要从场地列表获取   |
+#
+#             #### 字段解释
+#
+#             | 名称 | 解释 | 类型 |
+#             |--------|--------|--------|--------|
+#             |    month    |    月份    |    string   |
+#             |    city_sale_num    |    全城单商户月均销量    |    string   |
+#             |    dis_sale_num    |    区域单商户月均销量  |    doublo   |
+#             |    dis_sale_num    |    门店单商户月均销量    |    double   |
+#
+#             #### return
+#             - ##### json
+#             > [{"month": "4月", "city_sale_num": "719.5404", "dis_sale_num": 862.672932330827, "xmxc_sale_num": 4902.0}]
+#             @@@
+#     """
+#     db = pool_mapmarkeronline.connection()
+#     cur = db.cursor()
+#     platform = request.args.get('platform')
+#     coordinate = request.args.get('coordinate')
+#     lat = str(coordinate).split(",")[1]
+#     lng = str(coordinate).split(",")[0]
+#     distance = request.args.get('distance')
+#     city = request.args.get('city')
+#     sql_food = "SELECT own_second_cate,month_sale_num,latitude,longitude from t_map_client_%s_%s_mark where update_time BETWEEN %s and %s and " \
+#                "own_first_cate not in ('商店超市','果蔬生鲜','鲜花绿植','医药健康')" % (platform, city, up_time, to_time)
+#     cur.execute(sql_food)
+#     results = cur.fetchall()
+#     cate_name_list = []
+#     cate_sum_list = []
+#     cate_dict = {}
+#     for row in results:
+#
+#         latitude = row[2]
+#         longitude = row[3]
+#         dis = getDistance(float(latitude), float(longitude), float(lat), float(lng))
+#         if dis <= float(distance):
+#             cate_name_list.append(row[0])
+#             cate_sum_list.append(row[1])
+#     cate_dict['key'] = cate_name_list
+#     cate_dict['data'] = cate_sum_list
+#     df = pd.DataFrame(cate_dict)
+#     kk_sum = df.groupby(['key'], as_index=False)['data'].sum()
+#     kk_count = df.groupby(['key'], as_index=False)['data'].count()
+#
+#     sq = []
+#     all_data = {}
+#     dis_sum = {}
+#     dis_count = {}
+#     for a in kk_sum.values:
+#         dis_sum[a[0]] = a[1]
+#     for a in kk_count.values:
+#         dis_count[a[0]] = a[1]
+#     all_data['count'] = dis_count
+#     all_data['sum'] = dis_sum
+#     sq.append(all_data)
+#     jsondatar = json.dumps(sq, ensure_ascii=False)
+#     db.close()
+#     return jsondatar
 
 
 # 获得品类下详细菜品
@@ -1017,6 +1029,9 @@ def get_race():
     |    seat_num    |    座位数    |    string   |
     |    month_rant    |    档口租金    |    string   |
     |    entry_fee    |    进场费    |    string   |
+    |    latitude    |    纬度    |    string   |
+    |    longitude    |    经度    |    string   |
+    |    address    |    地址    |    string   |
 
     #### return
     - ##### json
@@ -1029,7 +1044,7 @@ def get_race():
     lat = str(coordinate).split(",")[1]
     lng = str(coordinate).split(",")[0]
     distance = request.args.get('distance')
-    sql = "SELECT mark_name,latitude,longitude,area,stall_num,seat_num,month_rent,entry_fee from t_map_mark"
+    sql = "SELECT mark_name,latitude,longitude,area,stall_num,seat_num,month_rent,entry_fee,address from t_map_mark"
     cur.execute(sql)
     results = cur.fetchall()
 
@@ -1042,11 +1057,14 @@ def get_race():
 
         if dis <= float(distance):
             data['mark_name'] = row[0]
+            data['latitude'] = row[1]
+            data['longitude'] = row[2]
             data['area'] = row[3]
             data['stall_num'] = row[4]
             data['seat_num'] = row[5]
             data['month_rant'] = row[6]
             data['entry_fee'] = row[7]
+            data['address'] = row[8]
             sq.append(data)
     jsondatar = json.dumps(sq, ensure_ascii=False)
     db.close()
