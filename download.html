@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+    <script src="http://code.jquery.com/jquery-1.10.2.js"></script>
+</head>
+<body>
+<button type="button" id="btn1">下载</button>
+<form action="http://127.0.0.1:8000/download" method="get">
+   <input type="text" name="filepath"/>
+   <input type="submit" value="提交">
+</form>
+
+</body>
+ <script type="text/javascript">
+
+ var $eleBtn1 = $("#btn1");
+var $eleBtn2 = $("#btn2");
+
+//已知一个下载文件的后端接口：
+https://codeload.github.com/douban/douban-client/legacy.zip/master
+//方法一：window.open()
+$eleBtn1.click(function(){
+	var url = 'http://127.0.0.1:8000/download?filepath='
+	window.open(url);
+});
+
+ </script>
+</html>

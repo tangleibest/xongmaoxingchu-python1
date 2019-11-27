@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>上传文件</title>
+    <script type="text/javascript">
+
+
+function xhrSubmit() {
+{#            $('#fafafa')[0]注意这儿的写法#}
+            var file_obj = document.getElementById('fafafa').files[0];
+
+            var fd = new FormData();
+            fd.append('fafafa',file_obj);
+            xhr = new XMLHttpRequest();
+            xhr.open('POST', '/text', true)
+            xhr.send(fd);
+            xhr.onreadystatechange = function () {
+                //后端接受完毕
+            if(xhr.readyState == 4){
+                 <!--var obj = JSON.parse(xhr.responseText);-->
+                 console.log(xhr.responseText);
+                 document.getElementById("resultLbl").innerText = xhr.responseText;
+
+               }
+            };
+
+        }
+</script>
+</head>
+<body>
+    <h2>上传门店卡片</h2>
+    <input  class="file" type="file" id="fafafa" name="fileupload" />
+    <input type="button" value="提交" onclick="xhrSubmit();"/>
+    <label id="resultLbl"></label>
+
+
+
+</body>
+</html>

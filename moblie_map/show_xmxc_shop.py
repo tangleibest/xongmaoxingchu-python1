@@ -3,19 +3,19 @@ import math
 
 from DBUtils.PooledDB import PooledDB
 from flask import Flask, request,Blueprint
-from flask_docs import ApiDoc
+# from flask_docs import ApiDoc
 import pymysql
-from flask_cors import *
+# from flask_cors import *
 import json
 import time
 import datetime
 import pandas as pd
 
 app = Flask(__name__)
-CORS(app, supports_credentials=True)
+# CORS(app, supports_credentials=True)
 app.config['API_DOC_MEMBER'] = ['api', 'platform']
 
-ApiDoc(app)
+# ApiDoc(app)
 
 api = Blueprint('api', __name__)
 platform = Blueprint('platform', __name__)
