@@ -10,6 +10,7 @@ import json
 import time
 import datetime
 import pandas as pd
+import redis
 
 app = Flask(__name__)
 CORS(app, supports_credentials=True)
@@ -48,7 +49,10 @@ def getDistance(lat1, lng1, lat2, lng2):
     s = s * EARTH_REDIUS
     return s
 
-
+#redis连接池
+pool = redis.ConnectionPool(host='139.199.112.205', port=6379,password='xmxc1234',db=1,decode_responses=True)
+redis_conn = redis.Redis(connection_pool=pool)
+#数据库连接池
 pool_mapmarkeronline = PooledDB(pymysql, 5, host='bj-cdb-cwu7v42u.sql.tencentcdb.com', user='root', passwd='xmxc1234',
                                 db='mapmarkeronline', port=62864)
 
@@ -94,46 +98,54 @@ def get_office_info():
         """
     db = pool_mapmarkeronline.connection()
     cur = db.cursor()
+    city_id = request.args.get('city_id')
     coordinate = request.args.get('coordinate')
     lat = str(coordinate).split(",")[1]
     lng = str(coordinate).split(",")[0]
     distance = request.args.get('distance')
-    city_id = request.args.get('city_id')
-    city=''
-    if city_id=='1':
-        city='北京市'
-    elif city_id=='2':
-        city='上海市'
-    elif city_id=='3':
-        city='杭州市'
-    elif city_id=='4':
-        city='深圳市'
 
-    up_lat = float(lat) + 0.04
-    down_lat = float(lat) - 0.04
-    up_lng = float(lng) + 0.05
-    down_lng = float(lng) - 0.05
+    cheak_key = '/api/getOfficeInfo' + city_id  + coordinate + distance
+    res = redis_conn.exists(cheak_key)
+    if res == 1:
+        jsondatar = redis_conn.get(cheak_key)
+    else:
+        city=''
+        if city_id=='1':
+            city='北京市'
+        elif city_id=='2':
+            city='上海市'
+        elif city_id=='3':
+            city='杭州市'
+        elif city_id=='4':
+            city='深圳市'
 
-    sql = "SELECT b_name,longitude,latitude from t_map_office_building where longitude !='不明' and b_city='%s'  and latitude BETWEEN '%s' and " \
-          "'%s' and longitude BETWEEN '%s' and '%s'" % (city, down_lat, up_lat, down_lng, up_lng)
-    sq = []
-    cur.execute(sql)
-    results = cur.fetchall()
+        up_lat = float(lat) + 0.04
+        down_lat = float(lat) - 0.04
+        up_lng = float(lng) + 0.05
+        down_lng = float(lng) - 0.05
 
-    for row in results:
-        data = {}
-        b_name = row[0]
-        longitude = row[1]
-        latitude = row[2]
-        dis = getDistance(float(latitude), float(longitude), float(lat), float(lng))
-        if dis <= float(distance):
-            # office_count=office_count+1
-            data['office_name'] = b_name
-            data['distance'] = dis
-            sq.append(data)
-    sq=sorted(sq,key=lambda x:x['distance'])
-    jsondatar = json.dumps(sq, ensure_ascii=False)
-    db.close()
+        sql = "SELECT b_name,longitude,latitude from t_map_office_building where longitude !='不明' and b_city='%s'  and latitude BETWEEN '%s' and " \
+              "'%s' and longitude BETWEEN '%s' and '%s'" % (city, down_lat, up_lat, down_lng, up_lng)
+        sq = []
+        cur.execute(sql)
+        results = cur.fetchall()
+
+        for row in results:
+            data = {}
+            b_name = row[0]
+            longitude = row[1]
+            latitude = row[2]
+            dis = getDistance(float(latitude), float(longitude), float(lat), float(lng))
+            if dis <= float(distance):
+                # office_count=office_count+1
+                data['office_name'] = b_name
+                data['distance'] = dis
+                sq.append(data)
+        sq=sorted(sq,key=lambda x:x['distance'])
+        jsondatar = json.dumps(sq, ensure_ascii=False)
+        redis_conn.set(cheak_key, jsondatar)
+        redis_conn.expire(cheak_key, 2592000)
+        db.close()
     return jsondatar
 
 
@@ -165,107 +177,55 @@ def get_housing_info():
             """
     db = pool_mapmarkeronline.connection()
     cur = db.cursor()
+    city_id = request.args.get('city_id')
     coordinate = request.args.get('coordinate')
     lat = str(coordinate).split(",")[1]
     lng = str(coordinate).split(",")[0]
     distance = request.args.get('distance')
-    city_id = request.args.get('city_id')
-    city = ''
-    if city_id == '1':
-        city = '北京市'
-    elif city_id == '2':
-        city = '上海市'
-    elif city_id == '3':
-        city = '杭州市'
-    elif city_id == '4':
-        city = '深圳市'
-    up_lat = float(lat) + 0.04
-    down_lat = float(lat) - 0.04
-    up_lng = float(lng) + 0.05
-    down_lng = float(lng) - 0.05
-    sql = "SELECT uptown_name,longitude,latitude from t_map_lianjia_uptown where longitude !='不明' and " \
-          "city='%s' and latitude BETWEEN '%s' and '%s' and longitude BETWEEN '%s' and '%s'"  % (city, down_lat, up_lat, down_lng, up_lng)
-    sq = []
-    cur.execute(sql)
-    results = cur.fetchall()
-    # 遍历结果
-    for row in results:
-        data = {}
-        uptown_name = row[0]
-        longitude = row[1]
-        latitude = row[2]
-        dis = getDistance(float(latitude), float(longitude), float(lat), float(lng))
-        if dis <= float(distance):
 
-            data['housing_name'] = uptown_name
+    cheak_key = '/api/getHousingInfo' + city_id + coordinate + distance
+    res = redis_conn.exists(cheak_key)
+    if res == 1:
+        jsondatar = redis_conn.get(cheak_key)
+    else:
+        city = ''
+        if city_id == '1':
+            city = '北京市'
+        elif city_id == '2':
+            city = '上海市'
+        elif city_id == '3':
+            city = '杭州市'
+        elif city_id == '4':
+            city = '深圳市'
+        up_lat = float(lat) + 0.04
+        down_lat = float(lat) - 0.04
+        up_lng = float(lng) + 0.05
+        down_lng = float(lng) - 0.05
+        sql = "SELECT uptown_name,longitude,latitude from t_map_lianjia_uptown where longitude !='不明' and " \
+              "city='%s' and latitude BETWEEN '%s' and '%s' and longitude BETWEEN '%s' and '%s'"  % (city, down_lat, up_lat, down_lng, up_lng)
+        sq = []
+        cur.execute(sql)
+        results = cur.fetchall()
+        # 遍历结果
+        for row in results:
+            data = {}
+            uptown_name = row[0]
+            longitude = row[1]
+            latitude = row[2]
+            dis = getDistance(float(latitude), float(longitude), float(lat), float(lng))
+            if dis <= float(distance):
 
-            data['distance'] = dis
-            sq.append(data)
-    sq = sorted(sq, key=lambda x: x['distance'])
-    jsondatar = json.dumps(sq, ensure_ascii=False)
-    db.close()
+                data['housing_name'] = uptown_name
+
+                data['distance'] = dis
+                sq.append(data)
+        sq = sorted(sq, key=lambda x: x['distance'])
+        jsondatar = json.dumps(sq, ensure_ascii=False)
+        redis_conn.set(cheak_key, jsondatar)
+        redis_conn.expire(cheak_key, 2592000)
+        db.close()
     return jsondatar
 
-
-# 返回周边配套餐饮商户名单
-# @app.route('/api/getFoodDisInfo')
-# def get_food_dis_info():
-#     """返回周边配套餐饮商户名单
-#
-#     @@@
-#     #### 参数列表
-#
-#     | 参数 | 描述 | 类型 | 例子 | 备注 |
-#     |--------|--------|--------|--------|--------|
-#     |    coordinate    |    经纬度    |    string   |    116.494325,39.976051    |       |
-#     |    distance    |    半径    |    string   |    1.5    |       |
-#     |    city    |    城市    |    string   |    beijing   |       |
-#     |    cate    |    品类    |    string   |    东北菜   |    需要从周边品类榜中获取   |
-#
-#     #### 字段解释
-#
-#     | 名称 | 描述 | 类型 |
-#     |--------|--------|--------|--------|
-#     |    shop_name    |    商户名称    |    string   |
-#     |    shop_month_sale    |    商户月销量    |    int   |
-#
-#     #### return
-#     - ##### json
-#     > [{"shop_name": "川湘快餐（第1档口+呱呱美食城店）", "shop_month_sale": 9999}, {"shop_name": "张亮麻辣烫（将台路店）", "shop_month_sale": 7645}]
-#     @@@
-#     """
-#     db = pool_mapmarkeronline.connection()
-#     cur = db.cursor()
-#     coordinate = request.args.get('coordinate')
-#     lat = str(coordinate).split(",")[1]
-#     lng = str(coordinate).split(",")[0]
-#     distance = request.args.get('distance')
-#     city = request.args.get('city')
-#     cate = request.args.get('cate')
-#     up_lat = float(lat) + 0.04
-#     down_lat = float(lat) - 0.04
-#     up_lng = float(lng) + 0.05
-#     down_lng = float(lng) - 0.05
-#     sql_food = "SELECT latitude,longitude,client_name,month_sale_num,own_second_cate from t_map_client_mt_%s_mark where update_time BETWEEN %s and %s and own_first_cate not in ('商店超市','果蔬生鲜','鲜花绿植','医药健康')  and latitude BETWEEN '%s' and  " \
-#                "'%s' and longitude BETWEEN '%s' and '%s' and own_second_cate='%s' order by month_sale_num desc" % (city, up_time, to_time, down_lat, up_lat, down_lng, up_lng,cate)
-#
-#     cur.execute(sql_food)
-#     results_food = cur.fetchall()
-#     food_info=[]
-#     for row in results_food:
-#         data={}
-#         dis = getDistance(float(row[0]), float(row[1]), float(lat), float(lng))
-#         if dis <= float(distance):
-#             data["shop_name"]=row[2]
-#             data["shop_month_sale"]=row[3]
-#             food_info.append(data)
-#
-#     jsondatar = json.dumps(food_info, ensure_ascii=False)
-#     db.close()
-#     return jsondatar
-
-
-# 返回周边数据下周边配套数据
 
 @app.route('/api/getBaicInfo')
 def get_baic_info():
@@ -309,147 +269,155 @@ def get_baic_info():
         """
     db = pool_mapmarkeronline.connection()
     cur = db.cursor()
+    city_id = request.args.get('city_id')
     coordinate = request.args.get('coordinate')
     lat = str(coordinate).split(",")[1]
     lng = str(coordinate).split(",")[0]
     distance = request.args.get('distance')
-    city_id = request.args.get('city_id')
-    up_lat = float(lat) + 0.04
-    down_lat = float(lat) - 0.04
-    up_lng = float(lng) + 0.05
-    down_lng = float(lng) - 0.05
-    city_name = ""
-    city=''
-    if city_id == "1":
-        city_name = "北京市"
-        city='beijing'
-    elif city_id == "2":
-        city_name = "上海市"
-        city = 'shanghai'
-    elif city_id == "3":
-        city_name = "杭州市"
-        city = 'hangzhou'
-    elif city_id == "4":
-        city_name = "深圳市"
-        city = 'shenzhen'
-    sql_house = "SELECT longitude,latitude from t_map_lianjia_uptown where longitude !='不明' and city='%s'" % city_name
-    sql_office = "SELECT longitude,latitude from t_map_office_building where longitude !='不明' and b_city='%s'" % city_name
-    sql_food = "SELECT latitude,longitude from t_map_client_mt_%s_mark where update_time BETWEEN %s and %s and latitude BETWEEN '%s' and  " \
-               "'%s' and longitude BETWEEN '%s' and '%s'" % (city, up_time, to_time, down_lat, up_lat, down_lng, up_lng)
-    sq = []
-    print(sql_food)
-    # 执行小区sql，获取数据
-    cur.execute(sql_house)
-    results_house = cur.fetchall()
-    # 遍历结果
-    house_count = 0
-    all_data = {}
 
-    for row in results_house:
-        longitude = row[0]
-        latitude = row[1]
-        dis = getDistance(float(latitude), float(longitude), float(lat), float(lng))
-        if dis <= float(distance):
+    cheak_key = '/api/getBaicInfo' + city_id + coordinate + distance
+    res = redis_conn.exists(cheak_key)
+    if res == 1:
+        jsondatar = redis_conn.get(cheak_key)
+    else:
+        up_lat = float(lat) + 0.04
+        down_lat = float(lat) - 0.04
+        up_lng = float(lng) + 0.05
+        down_lng = float(lng) - 0.05
+        city_name = ""
+        city=''
+        if city_id == "1":
+            city_name = "北京市"
+            city='beijing'
+        elif city_id == "2":
+            city_name = "上海市"
+            city = 'shanghai'
+        elif city_id == "3":
+            city_name = "杭州市"
+            city = 'hangzhou'
+        elif city_id == "4":
+            city_name = "深圳市"
+            city = 'shenzhen'
+        sql_house = "SELECT longitude,latitude from t_map_lianjia_uptown where longitude !='不明' and city='%s'" % city_name
+        sql_office = "SELECT longitude,latitude from t_map_office_building where longitude !='不明' and b_city='%s'" % city_name
+        sql_food = "SELECT latitude,longitude from t_map_client_mt_%s_mark where update_time BETWEEN %s and %s and latitude BETWEEN '%s' and  " \
+                   "'%s' and longitude BETWEEN '%s' and '%s'" % (city, up_time, to_time, down_lat, up_lat, down_lng, up_lng)
+        sq = []
+        print(sql_food)
+        # 执行小区sql，获取数据
+        cur.execute(sql_house)
+        results_house = cur.fetchall()
+        # 遍历结果
+        house_count = 0
+        all_data = {}
 
-            house_count = house_count + 1
-    # 执行写字楼sql，获取数据
-    cur.execute(sql_office)
-    results_office = cur.fetchall()
-    office_count = 0
-    for row in results_office:
-        longitude = row[0]
-        latitude = row[1]
-        dis = getDistance(float(latitude), float(longitude), float(lat), float(lng))
-        if dis <= float(distance):
-            office_count = office_count + 1
+        for row in results_house:
+            longitude = row[0]
+            latitude = row[1]
+            dis = getDistance(float(latitude), float(longitude), float(lat), float(lng))
+            if dis <= float(distance):
 
-
-    # 获取餐饮信息
-    cur.execute(sql_food)
-    results_food = cur.fetchall()
-    food_count = 0
-    for row in results_food:
-        dis = getDistance(float(row[0]), float(row[1]), float(lat), float(lng))
-        if dis <= float(distance):
-            food_count = food_count + 1
+                house_count = house_count + 1
+        # 执行写字楼sql，获取数据
+        cur.execute(sql_office)
+        results_office = cur.fetchall()
+        office_count = 0
+        for row in results_office:
+            longitude = row[0]
+            latitude = row[1]
+            dis = getDistance(float(latitude), float(longitude), float(lat), float(lng))
+            if dis <= float(distance):
+                office_count = office_count + 1
 
 
-    # 获取医院个数
-    sql_hospital = "SELECT hospital_lat,hospital_lng,hospital_name from t_map_hospital_info WHERE hospital_lat !='不明'"
-    cur.execute(sql_hospital)
-    results_hospital = cur.fetchall()
-    hospital_count = 0
-    hospital_info=[]
-    for row_hos in results_hospital:
-        hospital_data={}
-        dis = getDistance(float(row_hos[0]), float(row_hos[1]), float(lat), float(lng))
-        if dis <= float(distance):
-            hospital_count += 1
-            hospital_data['hospital_name']=row_hos[2]
-            hospital_data['hospital_dis']=dis
-            hospital_info.append(hospital_data)
-    hospital_info = sorted(hospital_info, key=lambda x: x['hospital_dis'])
-    #获取学校信息
-    sql_school = "SELECT school_lat,school_lng,school_name from t_map_school_info WHERE school_city='%s' and  school_lng !='不明'" %city_name
-    cur.execute(sql_school)
-    results_school = cur.fetchall()
-    school_count = 0
-    school_info=[]
-    for row_hos in results_school:
-        school_data={}
-        dis = getDistance(float(row_hos[0]), float(row_hos[1]), float(lat), float(lng))
-        if dis <= float(distance):
-            school_count += 1
-            school_data["school_name"]=row_hos[2]
-            school_data["school_dis"]=dis
-            school_info.append(school_data)
-    school_info = sorted(school_info, key=lambda x: x['school_dis'])
-    #获取酒店、商场信息
-    city_name2=city_name[0:2]
-    sql_buildings="SELECT buildings_latitude,buildings_longitude,total_type,buildings_name from t_map_buildings where city_name='%s'" %city_name2
-    cur.execute(sql_buildings)
-    results_buildings = cur.fetchall()
-    market_count = 0
-    hotel_count=0
-    market_info=[]
-    hotel_info=[]
-    for row_hos in results_buildings:
-        dis = getDistance(float(row_hos[0]), float(row_hos[1]), float(lat), float(lng))
-        market_data={}
-        hotel_data={}
-        if dis <= float(distance):
-            if row_hos[2]=='商场':
-                market_count += 1
-                market_data["market_name"]=row_hos[3]
-                market_data["market_dis"]=dis
-                market_info.append(market_data)
-            elif row_hos[2]=='酒店':
-                hotel_count+=1
-                hotel_data['hotel_name']=row_hos[3]
-                hotel_data['hotel_dis']=dis
-                hotel_info.append(hotel_data)
-    market_info = sorted(market_info, key=lambda x: x['market_dis'])
-    hotel_info = sorted(hotel_info, key=lambda x: x['hotel_dis'])
+        # 获取餐饮信息
+        cur.execute(sql_food)
+        results_food = cur.fetchall()
+        food_count = 0
+        for row in results_food:
+            dis = getDistance(float(row[0]), float(row[1]), float(lat), float(lng))
+            if dis <= float(distance):
+                food_count = food_count + 1
 
-    # 整和数据返回
-    baic_info={}
-    baic_info['house_count'] = house_count
-    baic_info['office_count'] = office_count
-    baic_info['food_count'] = food_count
-    baic_info['hospital_count'] = hospital_count
-    baic_info['school_count'] = school_count
-    baic_info['market_count'] = market_count
-    baic_info['hotel_count'] = hotel_count
 
-    all_data['baic_info'] = baic_info
-    all_data['hotel_info']=hotel_info
-    all_data['market_info']=market_info
-    all_data['school_info']=school_info
-    all_data['hospital_info']=hospital_info
+        # 获取医院个数
+        sql_hospital = "SELECT hospital_lat,hospital_lng,hospital_name from t_map_hospital_info WHERE hospital_lat !='不明'"
+        cur.execute(sql_hospital)
+        results_hospital = cur.fetchall()
+        hospital_count = 0
+        hospital_info=[]
+        for row_hos in results_hospital:
+            hospital_data={}
+            dis = getDistance(float(row_hos[0]), float(row_hos[1]), float(lat), float(lng))
+            if dis <= float(distance):
+                hospital_count += 1
+                hospital_data['hospital_name']=row_hos[2]
+                hospital_data['hospital_dis']=dis
+                hospital_info.append(hospital_data)
+        hospital_info = sorted(hospital_info, key=lambda x: x['hospital_dis'])
+        #获取学校信息
+        sql_school = "SELECT school_lat,school_lng,school_name from t_map_school_info WHERE school_city='%s' and  school_lng !='不明'" %city_name
+        cur.execute(sql_school)
+        results_school = cur.fetchall()
+        school_count = 0
+        school_info=[]
+        for row_hos in results_school:
+            school_data={}
+            dis = getDistance(float(row_hos[0]), float(row_hos[1]), float(lat), float(lng))
+            if dis <= float(distance):
+                school_count += 1
+                school_data["school_name"]=row_hos[2]
+                school_data["school_dis"]=dis
+                school_info.append(school_data)
+        school_info = sorted(school_info, key=lambda x: x['school_dis'])
+        #获取酒店、商场信息
+        city_name2=city_name[0:2]
+        sql_buildings="SELECT buildings_latitude,buildings_longitude,total_type,buildings_name from t_map_buildings where city_name='%s'" %city_name2
+        cur.execute(sql_buildings)
+        results_buildings = cur.fetchall()
+        market_count = 0
+        hotel_count=0
+        market_info=[]
+        hotel_info=[]
+        for row_hos in results_buildings:
+            dis = getDistance(float(row_hos[0]), float(row_hos[1]), float(lat), float(lng))
+            market_data={}
+            hotel_data={}
+            if dis <= float(distance):
+                if row_hos[2]=='商场':
+                    market_count += 1
+                    market_data["market_name"]=row_hos[3]
+                    market_data["market_dis"]=dis
+                    market_info.append(market_data)
+                elif row_hos[2]=='酒店':
+                    hotel_count+=1
+                    hotel_data['hotel_name']=row_hos[3]
+                    hotel_data['hotel_dis']=dis
+                    hotel_info.append(hotel_data)
+        market_info = sorted(market_info, key=lambda x: x['market_dis'])
+        hotel_info = sorted(hotel_info, key=lambda x: x['hotel_dis'])
 
-    sq.append(all_data)
-    jsondatar = json.dumps(sq, ensure_ascii=False)
-    db.close()
+        # 整和数据返回
+        baic_info={}
+        baic_info['house_count'] = house_count
+        baic_info['office_count'] = office_count
+        baic_info['food_count'] = food_count
+        baic_info['hospital_count'] = hospital_count
+        baic_info['school_count'] = school_count
+        baic_info['market_count'] = market_count
+        baic_info['hotel_count'] = hotel_count
+
+        all_data['baic_info'] = baic_info
+        all_data['hotel_info']=hotel_info
+        all_data['market_info']=market_info
+        all_data['school_info']=school_info
+        all_data['hospital_info']=hospital_info
+
+        sq.append(all_data)
+        jsondatar = json.dumps(sq, ensure_ascii=False)
+        redis_conn.set(cheak_key, jsondatar)
+        redis_conn.expire(cheak_key, 2592000)
+        db.close()
     return jsondatar
 
 
@@ -485,62 +453,70 @@ def get_shop_basic():
     db = pool_mapmarkeronline.connection()
     cur = db.cursor()
     city_id = request.args.get('city_id')
-    city = ''
-    if city_id == '1':
-        city = 'beijing'
-        city_month_sale = 34860810
-        city_shop_count = 40880
-    elif city_id == '2':
-        city = 'shanghai'
-        city_month_sale = 29329496
-        city_shop_count = 58257
-    elif city_id == '3':
-        city = 'hangzhou'
-        city_month_sale = 16914045
-        city_shop_count = 32801
-    elif city_id == '4':
-        city = 'shenzhen'
-        city_month_sale = 29502021
-        city_shop_count = 45995
     coordinate = request.args.get('coordinate')
     distance = request.args.get('distance')
-    lat = str(coordinate).split(",")[1]
-    lng = str(coordinate).split(",")[0]
-    up_lat = float(lat) + 0.04
-    down_lat = float(lat) - 0.04
-    up_lng = float(lng) + 0.05
-    down_lng = float(lng) - 0.05
-    sql = "SELECT month_sale_num,latitude,longitude,update_time  from t_map_client_mt_%s_mark where update_time BETWEEN %s and %s and own_first_cate not in ('商店超市','果蔬生鲜','鲜花绿植','医药健康') and latitude BETWEEN '%s' and  " \
-          "'%s' and longitude BETWEEN '%s' and '%s'" % (city, up_time, to_time, down_lat, up_lat, down_lng, up_lng)
-    cur.execute(sql)
-    results = cur.fetchall()
-    sq = []
+    cheak_key = '/api/getShopBasic' + city_id + coordinate + distance
+    res = redis_conn.exists(cheak_key)
+    if res == 1:
+        jsondatar = redis_conn.get(cheak_key)
+    else:
+        city = ''
+        if city_id == '1':
+            city = 'beijing'
+            city_month_sale = 34860810
+            city_shop_count = 40880
+        elif city_id == '2':
+            city = 'shanghai'
+            city_month_sale = 29329496
+            city_shop_count = 58257
+        elif city_id == '3':
+            city = 'hangzhou'
+            city_month_sale = 16914045
+            city_shop_count = 32801
+        elif city_id == '4':
+            city = 'shenzhen'
+            city_month_sale = 29502021
+            city_shop_count = 45995
 
-    update_time = results[0][3]
-    dis_sale_money = 0
-    dis_sale_count = 0
-    data = {}
-    for row in results:
+        lat = str(coordinate).split(",")[1]
+        lng = str(coordinate).split(",")[0]
+        up_lat = float(lat) + 0.04
+        down_lat = float(lat) - 0.04
+        up_lng = float(lng) + 0.05
+        down_lng = float(lng) - 0.05
+        sql = "SELECT month_sale_num,latitude,longitude,update_time  from t_map_client_mt_%s_mark where update_time BETWEEN %s and %s and own_first_cate not in ('商店超市','果蔬生鲜','鲜花绿植','医药健康') and latitude BETWEEN '%s' and  " \
+              "'%s' and longitude BETWEEN '%s' and '%s'" % (city, up_time, to_time, down_lat, up_lat, down_lng, up_lng)
+        cur.execute(sql)
+        results = cur.fetchall()
+        sq = []
 
-        month_sale = int(row[0])
-        latitude = row[1]
-        longitude = row[2]
+        update_time = results[0][3]
+        dis_sale_money = 0
+        dis_sale_count = 0
+        data = {}
+        for row in results:
 
-        dis = getDistance(float(latitude), float(longitude), float(lat), float(lng))
-        if dis <= float(distance):
-            dis_sale_money = dis_sale_money + month_sale
-            dis_sale_count = dis_sale_count + 1
-    dis_ave_shop_sale = dis_sale_money / dis_sale_count
-    update_time
-    data['update_time'] = int(update_time)
-    data['city_sale_money'] = city_month_sale
-    data['city_sale_count'] = city_shop_count
-    data['dis_sale_money'] = int(dis_sale_money)
-    data['dis_sale_count'] = int(dis_sale_count)
-    data['dis_ave_shop_sale'] = float(dis_ave_shop_sale)
-    sq.append(data)
-    jsondatar = json.dumps(sq, ensure_ascii=False)
-    db.close()
+            month_sale = int(row[0])
+            latitude = row[1]
+            longitude = row[2]
+
+            dis = getDistance(float(latitude), float(longitude), float(lat), float(lng))
+            if dis <= float(distance):
+                dis_sale_money = dis_sale_money + month_sale
+                dis_sale_count = dis_sale_count + 1
+        dis_ave_shop_sale = dis_sale_money / dis_sale_count
+        update_time
+        data['update_time'] = int(update_time)
+        data['city_sale_money'] = city_month_sale
+        data['city_sale_count'] = city_shop_count
+        data['dis_sale_money'] = int(dis_sale_money)
+        data['dis_sale_count'] = int(dis_sale_count)
+        data['dis_ave_shop_sale'] = float(dis_ave_shop_sale)
+        sq.append(data)
+        jsondatar = json.dumps(sq, ensure_ascii=False)
+        redis_conn.set(cheak_key, jsondatar)
+        redis_conn.expire(cheak_key, 2592000)
+        db.close()
     return jsondatar
 
 
@@ -573,231 +549,223 @@ def get_ave_money():
     cur = db.cursor()
     cur1 = db.cursor()
     city_id = request.args.get('city_id')
-    city = ''
-    if city_id == '1':
-        city = 'beijing'
-    elif city_id == '2':
-        city = 'shanghai'
-    elif city_id == '3':
-        city = 'hangzhou'
-    elif city_id == '4':
-        city = 'shenzhen'
     coordinate = request.args.get('coordinate')
     lat = str(coordinate).split(",")[1]
     lng = str(coordinate).split(",")[0]
     distance = request.args.get('distance')
-    up_lat = float(lat) + 0.04
-    down_lat = float(lat) - 0.04
-    up_lng = float(lng) + 0.05
-    down_lng = float(lng) - 0.05
-    sql = "SELECT average_price,latitude,longitude from t_map_client_mt_%s_mark where update_time BETWEEN %s and %s and latitude BETWEEN '%s' and '%s' and longitude BETWEEN '%s' and '%s' and average_price is not NULL and average_price !='' and own_first_cate not in ('商店超市','果蔬生鲜','鲜花绿植','医药健康')" % (
-    city, up_time, to_time, down_lat, up_lat, down_lng, up_lng)
+    cheak_key = '/api/getAveMoney' + city_id + coordinate + distance
+    res = redis_conn.exists(cheak_key)
+    if res == 1:
+        jsondatar = redis_conn.get(cheak_key)
+    else:
+        city = ''
+        if city_id == '1':
+            city = 'beijing'
+        elif city_id == '2':
+            city = 'shanghai'
+        elif city_id == '3':
+            city = 'hangzhou'
+        elif city_id == '4':
+            city = 'shenzhen'
 
-    city_sql="SELECT SUM(average_price)/COUNT(1) from t_map_client_mt_%s_mark where update_time BETWEEN %s and %s and average_price is not NULL and average_price !=''  and own_first_cate not in ('商店超市','果蔬生鲜','鲜花绿植','医药健康') GROUP BY update_count "% (
-    city, up_time, to_time)
-    cur.execute(sql)
-    results = cur.fetchall()
+        up_lat = float(lat) + 0.04
+        down_lat = float(lat) - 0.04
+        up_lng = float(lng) + 0.05
+        down_lng = float(lng) - 0.05
+        sql = "SELECT average_price,latitude,longitude from t_map_client_mt_%s_mark where update_time BETWEEN %s and %s and latitude BETWEEN '%s' and '%s' and longitude BETWEEN '%s' and '%s' and average_price is not NULL and average_price !='' and own_first_cate not in ('商店超市','果蔬生鲜','鲜花绿植','医药健康')" % (
+        city, up_time, to_time, down_lat, up_lat, down_lng, up_lng)
 
-    cur1.execute(city_sql)
-    results1 = cur1.fetchall()
-    city_ave_shop_sale=results1[0][0]
-    sq = []
+        city_sql="SELECT SUM(average_price)/COUNT(1) from t_map_client_mt_%s_mark where update_time BETWEEN %s and %s and average_price is not NULL and average_price !=''  and own_first_cate not in ('商店超市','果蔬生鲜','鲜花绿植','医药健康') GROUP BY update_count "% (
+        city, up_time, to_time)
+        cur.execute(sql)
+        results = cur.fetchall()
 
-    dis_sale_money = 0.0
-    dis_sale_count = 0
-    data = {}
-    for row in results:
-        average_price = row[0]
-        latitude = row[1]
-        longitude = row[2]
+        cur1.execute(city_sql)
+        results1 = cur1.fetchall()
+        city_ave_shop_sale=results1[0][0]
+        sq = []
 
-        dis = getDistance(float(latitude), float(longitude), float(lat), float(lng))
-        if dis <= float(distance):
-            dis_sale_money = dis_sale_money + float(average_price)
-            dis_sale_count = dis_sale_count + 1
+        dis_sale_money = 0.0
+        dis_sale_count = 0
+        data = {}
+        for row in results:
+            average_price = row[0]
+            latitude = row[1]
+            longitude = row[2]
 
-    dis_ave_shop_sale = dis_sale_money / dis_sale_count
-    data['city_ave_shop_sale'] = city_ave_shop_sale
-    data['dis_ave_shop_sale'] = dis_ave_shop_sale
-    sq.append(data)
-    jsondatar = json.dumps(sq, ensure_ascii=False)
-    db.close()
+            dis = getDistance(float(latitude), float(longitude), float(lat), float(lng))
+            if dis <= float(distance):
+                dis_sale_money = dis_sale_money + float(average_price)
+                dis_sale_count = dis_sale_count + 1
+
+        dis_ave_shop_sale = dis_sale_money / dis_sale_count
+        data['city_ave_shop_sale'] = city_ave_shop_sale
+        data['dis_ave_shop_sale'] = dis_ave_shop_sale
+        sq.append(data)
+        jsondatar = json.dumps(sq, ensure_ascii=False)
+        redis_conn.set(cheak_key, jsondatar)
+        redis_conn.expire(cheak_key, 2592000)
+        db.close()
     return jsondatar
 
 
 # 返回周边品类榜
 @app.route('/api/getCate')
 def get_cate():
-    """返回周边品类榜
-
-        @@@
-        #### 参数列表
-
-        | 参数 | 参数解释 | 类型 | 例子 |
-        |--------|--------|--------|--------|
-        |    coordinate    |    经纬度    |    string   |    116.494325,39.976051    |
-        |    distance    |    半径    |    string   |    1.5    |
-        |    city_id    |    城市id （1：北京，2：上海，3：杭州，4：深圳）    |    string   |    1   |
-        |    platform    |    外卖平台（mt、elm）    |    string   |    elm   |
-
-        #### 字段解释
-
-        | 名称 | 解释 | 类型 |
-        |--------|--------|--------|--------|
-        |    cate_name    |    品类名称    |    string   |
-        |    cate_sum    |    该品类销售总单量    |    int   |
-        |    cate_count    |    该品类下商户数    |    int   |
-        |    cate_ave    |    该品类客单价    |    double   |
-
-        #### return
-        - ##### json
-        > [{"cate_name": "东北菜", "cate_sum": 18043, "cate_count": 10, "cate_ave": 27.8}, {"cate_name": "云南菜", "cate_sum": 1384, "cate_count": 3, "cate_ave": 40.0}]
-        @@@
-        """
-    db = pool_mapmarkeronline.connection()
-    cur = db.cursor()
     city_id = request.args.get('city_id')
-    city = ''
-    if city_id == '1':
-        city = 'beijing'
-    elif city_id == '2':
-        city = 'shanghai'
-    elif city_id == '3':
-        city = 'hangzhou'
-    elif city_id == '4':
-        city = 'shenzhen'
     platform = request.args.get('platform')
     coordinate = request.args.get('coordinate')
     lat = str(coordinate).split(",")[1]
     lng = str(coordinate).split(",")[0]
     distance = request.args.get('distance')
-    up_lat = float(lat) + 0.04
-    down_lat = float(lat) - 0.04
-    up_lng = float(lng) + 0.05
-    down_lng = float(lng) - 0.05
-    sql = "SELECT latitude,longitude,own_set_cate,month_sale_num FROM t_map_client_%s_%s_mark where update_time BETWEEN %s and %s and own_first_cate not in ('商店超市','果蔬生鲜','鲜花绿植','医药健康') and latitude BETWEEN '%s' and  " \
-               "'%s' and longitude BETWEEN '%s' and '%s' " % (platform, city, up_time, to_time, down_lat, up_lat, down_lng, up_lng)
-    cur.execute(sql)
-    results = cur.fetchall()
+    cheak_key = '/api/getCate'+city_id + platform + coordinate + distance
+    res = redis_conn.exists(cheak_key)
+    if res ==1 :
+        jsondatar=redis_conn.get(cheak_key)
+    else:
+        db = pool_mapmarkeronline.connection()
+        cur = db.cursor()
+        if city_id == '1':
+            city = 'beijing'
+        elif city_id == '2':
+            city = 'shanghai'
+        elif city_id == '3':
+            city = 'hangzhou'
+        elif city_id == '4':
+            city = 'shenzhen'
 
-    key_value = []
-    data_value = []
-    month_sale_list = {}
-    for row in results:
-        latitude = row[0]
-        longitude = row[1]
-        dis = getDistance(float(latitude), float(longitude), float(lat), float(lng))
-        if dis <= float(distance):
-            key_value.append(row[2])
-            data_value.append(int(row[3]))
-    month_sale_list['key'] = key_value
-    month_sale_list['data'] = data_value
-    df = pd.DataFrame(month_sale_list)
-    kk = df.groupby(['key'], as_index=False)['data'].sum()
-    kk_count = df.groupby(['key'], as_index=False)['data'].count()
-    sq = []
-    cate_name=[]
-    cate_name1=[]
-    cate_name2=[]
-    cate_sum_list=[]
-    cate_count_list=[]
-    kk_values=kk.values
-    kk_count_values=kk_count.values
-    for a in kk_values:
-        cate_name.append(a[0])
-        cate_sum_list.append(a[1])
-    zip1=zip(cate_name,cate_sum_list)
-    sorted1=sorted(zip1,key=(lambda x:x[0]))
-    for a in kk_count_values:
-        cate_name1.append(a[0])
-        cate_count_list.append(a[1])
-    zip2=zip(cate_name1,cate_count_list)
-    sorted2 = sorted(zip2,key=(lambda x:x[0]))
+        up_lat = float(lat) + 0.04
+        down_lat = float(lat) - 0.04
+        up_lng = float(lng) + 0.05
+        down_lng = float(lng) - 0.05
+        sql = "SELECT latitude,longitude,own_second_cate,month_sale_num FROM t_map_client_%s_%s_mark where update_time BETWEEN %s and %s and own_first_cate not in ('商店超市','果蔬生鲜','鲜花绿植','医药健康') and latitude BETWEEN '%s' and  " \
+                   "'%s' and longitude BETWEEN '%s' and '%s' " % (platform, city, up_time, to_time, down_lat, up_lat, down_lng, up_lng)
+        cur.execute(sql)
+        results = cur.fetchall()
 
-    if platform=='mt':
-        key_ave = []
-        data_ave = []
-        ave_list = {}
-        sql_ave = "SELECT latitude,longitude,own_set_cate,average_price FROM t_map_client_mt_%s_mark where update_time BETWEEN %s and %s and average_price is not null and own_first_cate not in ('商店超市','果蔬生鲜','鲜花绿植','医药健康') and latitude BETWEEN '%s' and  " \
-                   "'%s' and longitude BETWEEN '%s' and '%s' " % (city, up_time, to_time, down_lat, up_lat, down_lng, up_lng)
-        cur.execute(sql_ave)
-        results_ave = cur.fetchall()
-        for row in results_ave:
-            latitude_ave = row[0]
-            longitude_ave = row[1]
-            dis_ave = getDistance(float(latitude_ave), float(longitude_ave), float(lat), float(lng))
-            if dis_ave <= float(distance):
-                key_ave.append(row[2])
-                data_ave.append(int(row[3]))
-        ave_list['key_ave'] = key_ave
-        ave_list['data_ave'] = data_ave
-        df = pd.DataFrame(ave_list)
-        kk_ave = df.groupby(['key_ave'], as_index=False)['data_ave'].mean()
+        key_value = []
+        data_value = []
+        month_sale_list = {}
+        for row in results:
+            latitude = row[0]
+            longitude = row[1]
+            dis = getDistance(float(latitude), float(longitude), float(lat), float(lng))
+            if dis <= float(distance):
+                key_value.append(row[2])
+                data_value.append(int(row[3]))
+        month_sale_list['key'] = key_value
+        month_sale_list['data'] = data_value
+        df = pd.DataFrame(month_sale_list)
+        kk = df.groupby(['key'], as_index=False)['data'].sum()
+        kk_count = df.groupby(['key'], as_index=False)['data'].count()
+        sq = []
+        cate_name=[]
+        cate_name1=[]
+        cate_name2=[]
+        cate_sum_list=[]
+        cate_count_list=[]
+        kk_values=kk.values
+        kk_count_values=kk_count.values
+        for a in kk_values:
+            cate_name.append(a[0])
+            cate_sum_list.append(a[1])
+        zip1=zip(cate_name,cate_sum_list)
+        sorted1=sorted(zip1,key=(lambda x:x[0]))
+        for a in kk_count_values:
+            cate_name1.append(a[0])
+            cate_count_list.append(a[1])
+        zip2=zip(cate_name1,cate_count_list)
+        sorted2 = sorted(zip2,key=(lambda x:x[0]))
 
-        cate_ave = []
-        kk_ave_values=kk_ave.values
-        for a in kk_ave_values:
-            cate_name2.append(a[0])
-            cate_ave.append(a[1])
-        zip3=zip(cate_name2,cate_ave)
-        sorted3=sorted(zip3,key=(lambda x:x[0]))
+        if platform=='mt':
+            key_ave = []
+            data_ave = []
+            ave_list = {}
+            sql_ave = "SELECT latitude,longitude,own_second_cate,average_price FROM t_map_client_mt_%s_mark where update_time BETWEEN %s and %s and average_price is not null and own_first_cate not in ('商店超市','果蔬生鲜','鲜花绿植','医药健康') and latitude BETWEEN '%s' and  " \
+                       "'%s' and longitude BETWEEN '%s' and '%s' " % (city, up_time, to_time, down_lat, up_lat, down_lng, up_lng)
+            cur.execute(sql_ave)
+            results_ave = cur.fetchall()
+            for row in results_ave:
+                latitude_ave = row[0]
+                longitude_ave = row[1]
+                dis_ave = getDistance(float(latitude_ave), float(longitude_ave), float(lat), float(lng))
+                if dis_ave <= float(distance):
+                    key_ave.append(row[2])
+                    data_ave.append(int(row[3]))
+            ave_list['key_ave'] = key_ave
+            ave_list['data_ave'] = data_ave
+            df = pd.DataFrame(ave_list)
+            kk_ave = df.groupby(['key_ave'], as_index=False)['data_ave'].mean()
 
-        sorted1.extend(sorted2)
-        sorted1.extend(sorted3)
+            cate_ave = []
+            kk_ave_values=kk_ave.values
+            for a in kk_ave_values:
+                cate_name2.append(a[0])
+                cate_ave.append(a[1])
+            zip3=zip(cate_name2,cate_ave)
+            sorted3=sorted(zip3,key=(lambda x:x[0]))
 
-        d = dict()
-        for item in sorted1:
-            if item[0] in d:
-                d[item[0]].append(item[1])
-            else:
-                d[item[0]] = [item[1]]
+            sorted1.extend(sorted2)
+            sorted1.extend(sorted3)
 
-        res = []
-        res2 = []
-        for k, v in d.items():
-            v.insert(0, k)
-            res.append(v)
-        for abc in res:
-            if len(abc)<=3:
-                abc.append(0)
-            res2.append(abc)
-        res2 = sorted(res2, key=lambda x: x[2], reverse=True)
-        for row in res2:
-            all_cate = {}
-            all_cate['cate_name'] = row[0]
-            all_cate['cate_sum'] = row[1]
-            all_cate['cate_count'] = row[2]
-            all_cate['cate_ave'] = row[3]
-            sq.append(all_cate)
-        jsondatar = json.dumps(sq, ensure_ascii=False)
-    elif platform=='elm':
-        sorted1.extend(sorted2)
-        d = dict()
-        for item in sorted1:
-            if item[0] in d:
-                d[item[0]].append(item[1])
-            else:
-                d[item[0]] = [item[1]]
+            d = dict()
+            for item in sorted1:
+                if item[0] in d:
+                    d[item[0]].append(item[1])
+                else:
+                    d[item[0]] = [item[1]]
 
-        res = []
-        res2 = []
-        for k, v in d.items():
-            v.insert(0, k)
-            res.append(v)
-        for abc in res:
-            if len(abc) <= 3:
-                abc.append(0)
-            res2.append(abc)
-        res2=sorted(res2,key=lambda x:x[1],reverse=True)
+            res = []
+            res2 = []
+            for k, v in d.items():
+                v.insert(0, k)
+                res.append(v)
+            for abc in res:
+                if len(abc)<=3:
+                    abc.append(0)
+                res2.append(abc)
+            res2 = sorted(res2, key=lambda x: x[2], reverse=True)
+            for row in res2:
+                all_cate = {}
+                all_cate['cate_name'] = row[0]
+                all_cate['cate_sum'] = row[1]
+                all_cate['cate_count'] = row[2]
+                all_cate['cate_ave'] = row[3]
+                sq.append(all_cate)
+            jsondatar = json.dumps(sq, ensure_ascii=False)
+            redis_conn.set(cheak_key,jsondatar)
+            redis_conn.expire(cheak_key, 2592000)
+        elif platform=='elm':
+            sorted1.extend(sorted2)
+            d = dict()
+            for item in sorted1:
+                if item[0] in d:
+                    d[item[0]].append(item[1])
+                else:
+                    d[item[0]] = [item[1]]
 
-        for row in res2:
-            all_cate = {}
-            all_cate['cate_name'] = row[0]
-            all_cate['cate_sum'] = row[1]
-            all_cate['cate_count'] = row[2]
-            sq.append(all_cate)
-        jsondatar = json.dumps(sq, ensure_ascii=False)
-    db.close()
+            res = []
+            res2 = []
+            for k, v in d.items():
+                v.insert(0, k)
+                res.append(v)
+            for abc in res:
+                if len(abc) <= 3:
+                    abc.append(0)
+                res2.append(abc)
+            res2=sorted(res2,key=lambda x:x[1],reverse=True)
+
+            for row in res2:
+                all_cate = {}
+                all_cate['cate_name'] = row[0]
+                all_cate['cate_sum'] = row[1]
+                all_cate['cate_count'] = row[2]
+                sq.append(all_cate)
+            jsondatar = json.dumps(sq, ensure_ascii=False)
+            redis_conn.set(cheak_key, jsondatar)
+            redis_conn.expire(cheak_key,2592000)
+        db.close()
+    redis_conn.close()
     return jsondatar
 
 
@@ -848,39 +816,46 @@ def get_food():
     lng = str(coordinate).split(",")[0]
     distance = request.args.get('distance')
     cate = request.args.get('cate')
-    sql = "SELECT latitude,longitude,shop_id,update_count FROM t_map_client_%s_%s_mark where update_time BETWEEN %s and %s  and own_set_cate='%s' and own_first_cate not in ('商店超市','果蔬生鲜','鲜花绿植','医药健康') " % (
-    platform, city, up_time, to_time, cate)
-    cur.execute(sql)
-    results = cur.fetchall()
-    update_count = results[0][3]
-    str_shop_id = ''
-    for row in results:
-        latitude = row[0]
-        longitude = row[1]
+    cheak_key = '/api/getFood' + city_id + coordinate + distance+platform+cate
+    res = redis_conn.exists(cheak_key)
+    if res == 1:
+        jsondatar = redis_conn.get(cheak_key)
+    else:
+        sql = "SELECT latitude,longitude,shop_id,update_count FROM t_map_client_%s_%s_mark where update_time BETWEEN %s and %s  and own_set_cate='%s' and own_first_cate not in ('商店超市','果蔬生鲜','鲜花绿植','医药健康') " % (
+        platform, city, up_time, to_time, cate)
+        cur.execute(sql)
+        results = cur.fetchall()
+        update_count = results[0][3]
+        str_shop_id = ''
+        for row in results:
+            latitude = row[0]
+            longitude = row[1]
 
-        dis = getDistance(float(latitude), float(longitude), float(lat), float(lng))
-        if dis <= float(distance):
-            shop_id = row[2]
-            str_shop_id = str_shop_id + "'" + shop_id + "',"
-    print(str_shop_id)
-    str_shop_id = str_shop_id.strip(',')
-    sql_food=''
-    if platform =='mt':
-        sql_food = "SELECT food_name,SUM(month_sale) sum_sale from t_map_client_%s_%s_mark_food where month_sale is not null and update_count=%s and client_id in (%s) GROUP BY food_name order by sum_sale desc limit 50" % (platform, city, update_count, str_shop_id)
-    elif platform =='elm':
-        sql_food = "SELECT food_name,SUM(month_sale) sum_sale from t_map_client_%s_%s_mark_food where month_sale is not null and update_count=%s and shop_id in (%s) GROUP BY food_name order by sum_sale desc limit 50" % (platform, city, update_count, str_shop_id)
-    print(sql_food)
-    cur.execute(sql_food)
-    results_food = cur.fetchall()
-    sq = []
+            dis = getDistance(float(latitude), float(longitude), float(lat), float(lng))
+            if dis <= float(distance):
+                shop_id = row[2]
+                str_shop_id = str_shop_id + "'" + shop_id + "',"
+        print(str_shop_id)
+        str_shop_id = str_shop_id.strip(',')
+        sql_food=''
+        if platform =='mt':
+            sql_food = "SELECT food_name,SUM(month_sale) sum_sale from t_map_client_%s_%s_mark_food where month_sale is not null and update_count=%s and client_id in (%s) GROUP BY food_name order by sum_sale desc limit 50" % (platform, city, update_count, str_shop_id)
+        elif platform =='elm':
+            sql_food = "SELECT food_name,SUM(month_sale) sum_sale from t_map_client_%s_%s_mark_food where month_sale is not null and update_count=%s and shop_id in (%s) GROUP BY food_name order by sum_sale desc limit 50" % (platform, city, update_count, str_shop_id)
+        print(sql_food)
+        cur.execute(sql_food)
+        results_food = cur.fetchall()
+        sq = []
 
-    for a in results_food:
-        food_dicr = {}
-        food_dicr['food_name']=a[0]
-        food_dicr['food_sale_num']=str(a[1])
-        sq.append(food_dicr)
-    jsondatar = json.dumps(sq, ensure_ascii=False)
-    db.close()
+        for a in results_food:
+            food_dicr = {}
+            food_dicr['food_name']=a[0]
+            food_dicr['food_sale_num']=str(a[1])
+            sq.append(food_dicr)
+        jsondatar = json.dumps(sq, ensure_ascii=False)
+        db.close()
+        redis_conn.set(cheak_key, jsondatar)
+        redis_conn.expire(cheak_key, 2592000)
     return jsondatar
 
 
@@ -936,98 +911,104 @@ def get_line_chart():
     lng = str(coordinate).split(",")[0]
     distance = request.args.get('distance')
     project_id = request.args.get('project_id')
+    cheak_key = '/api/getLineChart' + city_id + coordinate + distance + platform + project_id
+    res = redis_conn.exists(cheak_key)
+    if res == 1:
+        jsondatar = redis_conn.get(cheak_key)
+    else:
+        shop_to_time = datetime.date(datetime.date.today().year, datetime.date.today().month - 6, 1).strftime('%Y%m%d')
+        shop_end_time = str(datetime.date(datetime.date.today().year,datetime.date.today().month,1)-datetime.timedelta(1)).replace('-','')
+        get_update_sql = "SELECT update_count FROM t_map_client_%s_%s_mark where update_time BETWEEN %s and %s limit 1" % (platform, city, up_time, to_time)
+        cur.execute(get_update_sql)
+        results_get_update = cur.fetchall()
+        last_month_update_count = results_get_update[0][0]
+        six_month_update_count = last_month_update_count - 5
+        get_city_sql = "SELECT update_count,AVG(month_sale_num) from t_map_client_%s_%s_mark where update_count between %s and %s   and own_first_cate not in ('商店超市','果蔬生鲜','鲜花绿植','医药健康') GROUP BY update_count" % (
+        platform, city, six_month_update_count,last_month_update_count)
+        cur.execute(get_city_sql)
+        results_city = cur.fetchall()
+        month_list=[]
+        city_list=[]
+        dis_shop_list=[]
 
-    shop_to_time = datetime.date(datetime.date.today().year, datetime.date.today().month - 6, 1).strftime('%Y%m%d')
-    shop_end_time = str(datetime.date(datetime.date.today().year,datetime.date.today().month,1)-datetime.timedelta(1)).replace('-','')
-    get_update_sql = "SELECT update_count FROM t_map_client_%s_%s_mark where update_time BETWEEN %s and %s limit 1" % (platform, city, up_time, to_time)
-    cur.execute(get_update_sql)
-    results_get_update = cur.fetchall()
-    last_month_update_count = results_get_update[0][0]
-    six_month_update_count = last_month_update_count - 5
-    get_city_sql = "SELECT update_count,AVG(month_sale_num) from t_map_client_%s_%s_mark where update_count between %s and %s   and own_first_cate not in ('商店超市','果蔬生鲜','鲜花绿植','医药健康') GROUP BY update_count" % (
-    platform, city, six_month_update_count,last_month_update_count)
-    cur.execute(get_city_sql)
-    results_city = cur.fetchall()
-    month_list=[]
-    city_list=[]
-    dis_shop_list=[]
+        for row in results_city:
 
-    for row in results_city:
+            if platform == 'elm':
+                city_month = str(int(row[0]) - 3) + '月'
+            else:
+                city_month = str(row[0]) + '月'
+            month_list.append(city_month)
+            city_list.append(str(row[1]))
 
-        if platform == 'elm':
-            city_month = str(int(row[0]) - 3) + '月'
-        else:
-            city_month = str(row[0]) + '月'
-        month_list.append(city_month)
-        city_list.append(str(row[1]))
+        up_lat = float(lat) + 0.04
+        down_lat = float(lat) - 0.04
+        up_lng = float(lng) + 0.05
+        down_lng = float(lng) - 0.05
 
-    up_lat = float(lat) + 0.04
-    down_lat = float(lat) - 0.04
-    up_lng = float(lng) + 0.05
-    down_lng = float(lng) - 0.05
+        get_dis_sql = "SELECT update_count,month_sale_num,latitude,longitude from t_map_client_%s_%s_mark where update_count between %s and %s  and own_first_cate not in ('商店超市','果蔬生鲜','鲜花绿植','医药健康')  and latitude BETWEEN '%s' and '%s' and longitude BETWEEN '%s' and '%s'" \
+                      % (platform, city, six_month_update_count,last_month_update_count, down_lat, up_lat, down_lng, up_lng)
+        cur.execute(get_dis_sql)
+        results_dis = cur.fetchall()
+        dis_month = []
+        dis_month_sale = []
+        dis_dict = {}
+        for row in results_dis:
+            if platform == 'elm':
+                city_month = str(int(row[0]) - 3) + '月'
+            else:
+                city_month = str(row[0]) + '月'
+            latitude = row[2]
+            longitude = row[3]
+            dis = getDistance(float(latitude), float(longitude), float(lat), float(lng))
+            if dis <= float(distance):
+                dis_month.append(city_month)
+                dis_month_sale.append(row[1])
 
-    get_dis_sql = "SELECT update_count,month_sale_num,latitude,longitude from t_map_client_%s_%s_mark where update_count between %s and %s  and own_first_cate not in ('商店超市','果蔬生鲜','鲜花绿植','医药健康')  and latitude BETWEEN '%s' and '%s' and longitude BETWEEN '%s' and '%s'" \
-                  % (platform, city, six_month_update_count,last_month_update_count, down_lat, up_lat, down_lng, up_lng)
-    cur.execute(get_dis_sql)
-    results_dis = cur.fetchall()
-    dis_month = []
-    dis_month_sale = []
-    dis_dict = {}
-    for row in results_dis:
-        if platform == 'elm':
-            city_month = str(int(row[0]) - 3) + '月'
-        else:
-            city_month = str(row[0]) + '月'
-        latitude = row[2]
-        longitude = row[3]
-        dis = getDistance(float(latitude), float(longitude), float(lat), float(lng))
-        if dis <= float(distance):
-            dis_month.append(city_month)
-            dis_month_sale.append(row[1])
+        dis_dict['key'] = dis_month
+        dis_dict['data'] = dis_month_sale
+        df = pd.DataFrame(dis_dict)
+        kk = df.groupby(['key'], as_index=False)['data'].mean()
+        sq = []
+        for a in kk.values:
+            dis_shop_list.append(a[1])
 
-    dis_dict['key'] = dis_month
-    dis_dict['data'] = dis_month_sale
-    df = pd.DataFrame(dis_dict)
-    kk = df.groupby(['key'], as_index=False)['data'].mean()
-    sq = []
-    for a in kk.values:
-        dis_shop_list.append(a[1])
+        if project_id is not None:
+            sql_shop="SELECT a.project_id, SUM(a.sum_order_count), COUNT(1), RIGHT(a.date,2)  FROM ( SELECT  project_id,  merchant_name,  SUM(order_count) sum_order_count, " \
+                 " LEFT (stream_date, 6) date FROM  merchant_statistics WHERE  project_id = %s AND stream_date BETWEEN '%s' and '%s' GROUP BY  merchant_id," \
+                 "LEFT (stream_date, 6) ) a GROUP BY a.date" %(project_id,shop_to_time,shop_end_time)
+            cur_sta.execute(sql_shop)
+            results_cur=cur_sta.fetchall()
 
-    if project_id is not None:
-        sql_shop="SELECT a.project_id, SUM(a.sum_order_count), COUNT(1), RIGHT(a.date,2)  FROM ( SELECT  project_id,  merchant_name,  SUM(order_count) sum_order_count, " \
-             " LEFT (stream_date, 6) date FROM  merchant_statistics WHERE  project_id = %s AND stream_date BETWEEN '%s' and '%s' GROUP BY  merchant_id," \
-             "LEFT (stream_date, 6) ) a GROUP BY a.date" %(project_id,shop_to_time,shop_end_time)
-        cur_sta.execute(sql_shop)
-        results_cur=cur_sta.fetchall()
+            xmxc_list = []
+            for row in results_cur:
+                shop_ave=0.0
+                if int(row[2]>0):
+                    shop_ave=float(row[1])/int(row[2])
+                xmxc_list.append(shop_ave)
 
-        xmxc_list = []
-        for row in results_cur:
-            shop_ave=0.0
-            if int(row[2]>0):
-                shop_ave=float(row[1])/int(row[2])
-            xmxc_list.append(shop_ave)
+            da=list(zip(month_list,city_list,dis_shop_list,xmxc_list))
 
-        da=list(zip(month_list,city_list,dis_shop_list,xmxc_list))
+            for a in da:
+                    all_data = {}
+                    all_data['month']=a[0]
+                    all_data['city_sale_num']=a[1]
+                    all_data['dis_sale_num']=a[2]
+                    all_data['xmxc_sale_num']=a[3]
+                    sq.append(all_data)
+        elif project_id is None:
+            da = list(zip(month_list, city_list, dis_shop_list))
 
-        for a in da:
+            for a in da:
                 all_data = {}
-                all_data['month']=a[0]
-                all_data['city_sale_num']=a[1]
-                all_data['dis_sale_num']=a[2]
-                all_data['xmxc_sale_num']=a[3]
+                all_data['month'] = a[0]
+                all_data['city_sale_num'] = a[1]
+                all_data['dis_sale_num'] = a[2]
                 sq.append(all_data)
-    elif project_id is None:
-        da = list(zip(month_list, city_list, dis_shop_list))
 
-        for a in da:
-            all_data = {}
-            all_data['month'] = a[0]
-            all_data['city_sale_num'] = a[1]
-            all_data['dis_sale_num'] = a[2]
-            sq.append(all_data)
-
-    jsondatar = json.dumps(sq, ensure_ascii=False)
-    db.close()
+        jsondatar = json.dumps(sq, ensure_ascii=False)
+        redis_conn.set(cheak_key, jsondatar)
+        redis_conn.expire(cheak_key, 2592000)
+        db.close()
     return jsondatar
 
 #返回周边数据、门店数据下销售趋势
@@ -1143,55 +1124,62 @@ def get_cate_shop():
     distance = request.args.get('distance')
     city_id = request.args.get('city_id')
     platform = request.args.get('platform')
-    city = ''
-    if city_id == '1':
-        city = 'beijing'
-    elif city_id == '2':
-        city = 'shanghai'
-    elif city_id == '3':
-        city = 'hangzhou'
-    elif city_id == '4':
-        city = 'shenzhen'
-    if platform=='mt':
-        sql = "SELECT client_name,month_sale_num,latitude,longitude,average_price from t_map_client_mt_%s_mark where update_time BETWEEN %s and %s and own_first_cate not in ('商店超市','果蔬生鲜','鲜花绿植','医药健康') " \
-            "and own_set_cate='%s' order by month_sale_num desc" % (city, up_time, to_time, cate)
-        cur.execute(sql)
-        reultes = cur.fetchall()
-        sql_list = []
-        for row in reultes:
-            data = {}
-            latitude = row[2]
-            longitude = row[3]
-            dis = getDistance(float(latitude), float(longitude), float(lat), float(lng))
-            if dis <= float(distance):
-                data['shop_name'] = row[0]
-                data['month_sale'] = row[1]
-                data['latitude'] = row[2]
-                data['longitude'] = row[3]
-                data['average_price'] = row[4]
-                sql_list.append(data)
-        jsondatar = json.dumps(sql_list, ensure_ascii=False)
-
-    elif platform=='elm':
-        sql = "SELECT client_name,month_sale_num,latitude,longitude from t_map_client_elm_%s_mark where update_time BETWEEN %s and %s and own_first_cate not in ('商店超市','果蔬生鲜','鲜花绿植','医药健康') " \
-              "and own_set_cate='%s' order by month_sale_num desc" % (city, up_time, to_time, cate)
-        cur.execute(sql)
-        reultes = cur.fetchall()
-        sql_list = []
-        for row in reultes:
-            data = {}
-            latitude = row[2]
-            longitude = row[3]
-            dis = getDistance(float(latitude), float(longitude), float(lat), float(lng))
-            if dis <= float(distance):
-                data['shop_name'] = row[0]
-                data['month_sale'] = row[1]
-                data['latitude'] = row[2]
-                data['longitude'] = row[3]
-                sql_list.append(data)
-        jsondatar = json.dumps(sql_list, ensure_ascii=False)
-
-    db.close()
+    cheak_key = '/api/getCateShop' + city_id + coordinate + distance + platform + cate
+    res = redis_conn.exists(cheak_key)
+    if res == 1:
+        jsondatar = redis_conn.get(cheak_key)
+    else:
+        city = ''
+        if city_id == '1':
+            city = 'beijing'
+        elif city_id == '2':
+            city = 'shanghai'
+        elif city_id == '3':
+            city = 'hangzhou'
+        elif city_id == '4':
+            city = 'shenzhen'
+        if platform=='mt':
+            sql = "SELECT client_name,month_sale_num,latitude,longitude,average_price from t_map_client_mt_%s_mark where update_time BETWEEN %s and %s and own_first_cate not in ('商店超市','果蔬生鲜','鲜花绿植','医药健康') " \
+                "and own_set_cate='%s' order by month_sale_num desc" % (city, up_time, to_time, cate)
+            cur.execute(sql)
+            reultes = cur.fetchall()
+            sql_list = []
+            for row in reultes:
+                data = {}
+                latitude = row[2]
+                longitude = row[3]
+                dis = getDistance(float(latitude), float(longitude), float(lat), float(lng))
+                if dis <= float(distance):
+                    data['shop_name'] = row[0]
+                    data['month_sale'] = row[1]
+                    data['latitude'] = row[2]
+                    data['longitude'] = row[3]
+                    data['average_price'] = row[4]
+                    sql_list.append(data)
+            jsondatar = json.dumps(sql_list, ensure_ascii=False)
+            redis_conn.set(cheak_key, jsondatar)
+            redis_conn.expire(cheak_key, 2592000)
+        elif platform=='elm':
+            sql = "SELECT client_name,month_sale_num,latitude,longitude from t_map_client_elm_%s_mark where update_time BETWEEN %s and %s and own_first_cate not in ('商店超市','果蔬生鲜','鲜花绿植','医药健康') " \
+                  "and own_set_cate='%s' order by month_sale_num desc" % (city, up_time, to_time, cate)
+            cur.execute(sql)
+            reultes = cur.fetchall()
+            sql_list = []
+            for row in reultes:
+                data = {}
+                latitude = row[2]
+                longitude = row[3]
+                dis = getDistance(float(latitude), float(longitude), float(lat), float(lng))
+                if dis <= float(distance):
+                    data['shop_name'] = row[0]
+                    data['month_sale'] = row[1]
+                    data['latitude'] = row[2]
+                    data['longitude'] = row[3]
+                    sql_list.append(data)
+            jsondatar = json.dumps(sql_list, ensure_ascii=False)
+            redis_conn.set(cheak_key, jsondatar)
+            redis_conn.expire(cheak_key, 2592000)
+        db.close()
     return jsondatar
 
 
@@ -1233,30 +1221,37 @@ def get_race():
     lat = str(coordinate).split(",")[1]
     lng = str(coordinate).split(",")[0]
     distance = request.args.get('distance')
-    sql = "SELECT mark_name,latitude,longitude,area,stall_num,seat_num,month_rent,entry_fee,address from t_map_mark"
-    cur.execute(sql)
-    results = cur.fetchall()
+    cheak_key = '/api/getRace'  + coordinate + distance
+    res = redis_conn.exists(cheak_key)
+    if res == 1:
+        jsondatar = redis_conn.get(cheak_key)
+    else:
+        sql = "SELECT mark_name,latitude,longitude,area,stall_num,seat_num,month_rent,entry_fee,address from t_map_mark"
+        cur.execute(sql)
+        results = cur.fetchall()
 
-    sq = []
-    for row in results:
-        data = {}
-        latitude = row[1]
-        longitude = row[2]
-        dis = getDistance(float(latitude), float(longitude), float(lat), float(lng))
+        sq = []
+        for row in results:
+            data = {}
+            latitude = row[1]
+            longitude = row[2]
+            dis = getDistance(float(latitude), float(longitude), float(lat), float(lng))
 
-        if dis <= float(distance):
-            data['mark_name'] = row[0]
-            data['latitude'] = row[1]
-            data['longitude'] = row[2]
-            data['area'] = row[3]
-            data['stall_num'] = row[4]
-            data['seat_num'] = row[5]
-            data['month_rant'] = row[6]
-            data['entry_fee'] = row[7]
-            data['address'] = row[8]
-            sq.append(data)
-    jsondatar = json.dumps(sq, ensure_ascii=False)
-    db.close()
+            if dis <= float(distance):
+                data['mark_name'] = row[0]
+                data['latitude'] = row[1]
+                data['longitude'] = row[2]
+                data['area'] = row[3]
+                data['stall_num'] = row[4]
+                data['seat_num'] = row[5]
+                data['month_rant'] = row[6]
+                data['entry_fee'] = row[7]
+                data['address'] = row[8]
+                sq.append(data)
+        jsondatar = json.dumps(sq, ensure_ascii=False)
+        redis_conn.set(cheak_key, jsondatar)
+        redis_conn.expire(cheak_key, 2592000)
+        db.close()
     return jsondatar
 
 
@@ -1290,38 +1285,44 @@ def get_project_list():
     db = pool_project.connection()
     cur = db.cursor()
     city_id = request.args.get('city_id')
-    city_name=''
-    if city_id=='1':
-        city_name='北京'
-    elif city_id=='2':
-        city_name='上海'
-    elif city_id=='3':
-        city_name='杭州'
-    elif city_id=='4':
-        city_name='深圳'
-    sql = "SELECT a.project_id,a.project_name,b.address,b.latitude,b.longitude from project a LEFT JOIN development.project_base_info b on a.project_id=b.tid WHERE a.area_name='%s'" %city_name
-    #1548233984304802
-    # 原先 44515801327616
+    cheak_key = '/api/getProjectList' + city_id
+    res = redis_conn.exists(cheak_key)
+    if res == 1:
+        jsondu = redis_conn.get(cheak_key)
+    else:
+        city_name=''
+        if city_id=='1':
+            city_name='北京'
+        elif city_id=='2':
+            city_name='上海'
+        elif city_id=='3':
+            city_name='杭州'
+        elif city_id=='4':
+            city_name='深圳'
+        sql = "SELECT a.project_id,a.project_name,b.address,b.latitude,b.longitude from project a LEFT JOIN development.project_base_info b on a.project_id=b.tid WHERE a.area_name='%s'" %city_name
+        #1548233984304802
+        # 原先 44515801327616
 
-    cur.execute(sql)
-    results = cur.fetchall()
-    sq = []
-    for row in results:
-        data = {}
-        project_name = row[1]
-        project_id = row[0]
-        address = row[2]
-        latitude = str(row[3])
-        longitude = str(row[4])
-        data['project_id'] = project_id
-        data['project_name'] = project_name
-        data['address'] = address
-        data['latitude'] = latitude
-        data['longitude'] = longitude
-        sq.append(data)
-        print(data)
-    jsondu = json.dumps(sq, ensure_ascii=False)
-    pool_project.close()
+        cur.execute(sql)
+        results = cur.fetchall()
+        sq = []
+        for row in results:
+            data = {}
+            project_name = row[1]
+            project_id = row[0]
+            address = row[2]
+            latitude = str(row[3])
+            longitude = str(row[4])
+            data['project_id'] = project_id
+            data['project_name'] = project_name
+            data['address'] = address
+            data['latitude'] = latitude
+            data['longitude'] = longitude
+            sq.append(data)
+        jsondu = json.dumps(sq, ensure_ascii=False)
+        redis_conn.set(cheak_key, jsondu)
+        redis_conn.expire(cheak_key, 86400)
+        pool_project.close()
     return jsondu
 
 
@@ -1354,36 +1355,43 @@ def get_stalls():
     db = pool_project.connection()
     cur = db.cursor()
     project_id = request.args.get("project_id")
-    sql = "SELECT status,COUNT(1)  from stalls where project_id=%s  GROUP BY status" % project_id
-    cur.execute(sql)
-    results = cur.fetchall()
-    start_time = getdate(30, '%Y-%m-%d')
-    end_time = getdate(1, '%Y-%m-%d')
-    on_business = 0
-    empty = 0
-    for row in results:
-        status = row[0]
-        status_count = row[1]
-        if status == 0 or status == 6:
-            on_business = on_business + status_count
-        elif status == 3 or status == 5:
-            empty = empty + status_count
-    sql_new_shop = "SELECT COUNT(1) from contract where project_id=%s and enter_time  BETWEEN '%s' and '%s' GROUP BY stall_id" % (
-    project_id, start_time, end_time)
-    cur.execute(sql_new_shop)
-    results_new_shop = cur.fetchall()
-    new_shop = 0
-    if len(results_new_shop) > 0:
-        new_shop = results_new_shop[0][0]
+    cheak_key = '/api/getStalls' + project_id
+    res = redis_conn.exists(cheak_key)
+    if res == 1:
+        jsondu = redis_conn.get(cheak_key)
+    else:
+        sql = "SELECT status,COUNT(1)  from stalls where project_id=%s  GROUP BY status" % project_id
+        cur.execute(sql)
+        results = cur.fetchall()
+        start_time = getdate(30, '%Y-%m-%d')
+        end_time = getdate(1, '%Y-%m-%d')
+        on_business = 0
+        empty = 0
+        for row in results:
+            status = row[0]
+            status_count = row[1]
+            if status == 0 or status == 6:
+                on_business = on_business + status_count
+            elif status == 3 or status == 5:
+                empty = empty + status_count
+        sql_new_shop = "SELECT COUNT(1) from contract where project_id=%s and enter_time  BETWEEN '%s' and '%s' GROUP BY stall_id" % (
+        project_id, start_time, end_time)
+        cur.execute(sql_new_shop)
+        results_new_shop = cur.fetchall()
+        new_shop = 0
+        if len(results_new_shop) > 0:
+            new_shop = results_new_shop[0][0]
 
-    data = {}
-    data['on_business'] = on_business
-    data['empty'] = empty
-    data['new_shop'] = new_shop
-    sq = []
-    sq.append(data)
-    db.close()
-    jsondu = json.dumps(sq, ensure_ascii=False)
+        data = {}
+        data['on_business'] = on_business
+        data['empty'] = empty
+        data['new_shop'] = new_shop
+        sq = []
+        sq.append(data)
+        db.close()
+        jsondu = json.dumps(sq, ensure_ascii=False)
+        redis_conn.set(cheak_key, jsondu)
+        redis_conn.expire(cheak_key, 86400)
     return jsondu
 
 
@@ -1423,66 +1431,73 @@ def get_xmxc_shop():
     db=pool_statistics.connection()
     cur=db.cursor()
     project_id=request.args.get("project_id")
-    start_time = getdate(30, '%Y%m%d')
-    end_time = getdate(1, '%Y%m%d')
-    sql="SELECT merchant_id,merchant_name,SUM(order_count),SUM(sale_amount) from merchant_statistics where project_id=%s and  stream_date BETWEEN '%s' and '%s' GROUP BY merchant_id" % (project_id,start_time,end_time)
+    cheak_key = '/api/getXmxcShop' + project_id
+    res = redis_conn.exists(cheak_key)
+    if res == 1:
+        jsondu = redis_conn.get(cheak_key)
+    else:
+        start_time = getdate(30, '%Y%m%d')
+        end_time = getdate(1, '%Y%m%d')
+        sql="SELECT merchant_id,merchant_name,SUM(order_count),SUM(sale_amount) from merchant_statistics where project_id=%s and  stream_date BETWEEN '%s' and '%s' GROUP BY merchant_id" % (project_id,start_time,end_time)
 
-    cur.execute(sql)
-    results=cur.fetchall()
-    all_json=[]
-    sq=[]
-    all_count=0
-    all_money=0.0
-    for row in results:
-        order_count = int(row[2])
-        sale_amount = float(row[3])
-        all_count += order_count
-        all_money += sale_amount
+        cur.execute(sql)
+        results=cur.fetchall()
+        all_json=[]
+        sq=[]
+        all_count=0
+        all_money=0.0
+        for row in results:
+            order_count = int(row[2])
+            sale_amount = float(row[3])
+            all_count += order_count
+            all_money += sale_amount
 
-    for row in results:
-        data={}
-        merchant_name=row[1]
-        order_count=int(row[2])
-        proportion=0.0
-        if order_count>0:
-            proportion=order_count/all_count
-        data['merchant_name']=merchant_name
-        data['order_count']=order_count
-        data['proportion']=proportion
-        sq.append(data)
-    ave_shop=0
-    if all_count>0:
-        ave_shop=all_money/all_count
+        for row in results:
+            data={}
+            merchant_name=row[1]
+            order_count=int(row[2])
+            proportion=0.0
+            if order_count>0:
+                proportion=order_count/all_count
+            data['merchant_name']=merchant_name
+            data['order_count']=order_count
+            data['proportion']=proportion
+            sq.append(data)
+        ave_shop=0
+        if all_count>0:
+            ave_shop=all_money/all_count
 
-    sql_cate = "select (select mcc.category_name from commerce.merchants_configuration_category mcc where mcc.tid = mcr.second_category_id),sum(ms.sale_amount)," \
-               "sum(ms.order_count) from merchant_statistics ms left join merchant_category_rela mcr on ms.merchant_id = mcr.merchant_id where ms.project_id =" \
-               " %s and mcr.second_category_id != 0 and ms.stream_date between '%s' and '%s' group by mcr.second_category_id" % (
-    project_id, start_time, end_time)
-    print(sql_cate)
-    cur.execute(sql_cate)
-    results_cate = cur.fetchall()
-    cate_list=[]
-    for row in results_cate:
-        cata_data={}
-        cate_name=row[0]
-        cate_count=row[2]
-        cate_ave=0.0
-        if cate_count>0:
-            cate_ave=cate_count/all_count
-        cata_data["cate_name"]=cate_name
-        cata_data["cate_count"]=str(cate_count)
-        cata_data["cate_ave"]=str(cate_ave)
-        cate_list.append(cata_data)
-    json_dict={}
-    json_dict['all_order_count']=str(all_count)
-    json_dict['all_all_money']=str(all_money)
-    json_dict['ave_shop']=str(ave_shop)
-    json_dict['shop_list']=sq
-    json_dict['cate_list']=cate_list
-    all_json.append(json_dict)
+        sql_cate = "select (select mcc.category_name from commerce.merchants_configuration_category mcc where mcc.tid = mcr.second_category_id),sum(ms.sale_amount)," \
+                   "sum(ms.order_count) from merchant_statistics ms left join merchant_category_rela mcr on ms.merchant_id = mcr.merchant_id where ms.project_id =" \
+                   " %s and mcr.second_category_id != 0 and ms.stream_date between '%s' and '%s' group by mcr.second_category_id" % (
+        project_id, start_time, end_time)
 
-    db.close()
-    jsondu=json.dumps(all_json,ensure_ascii=False)
+        cur.execute(sql_cate)
+        results_cate = cur.fetchall()
+        cate_list=[]
+        for row in results_cate:
+            cata_data={}
+            cate_name=row[0]
+            cate_count=row[2]
+            cate_ave=0.0
+            if cate_count>0:
+                cate_ave=cate_count/all_count
+            cata_data["cate_name"]=cate_name
+            cata_data["cate_count"]=str(cate_count)
+            cata_data["cate_ave"]=str(cate_ave)
+            cate_list.append(cata_data)
+        json_dict={}
+        json_dict['all_order_count']=str(all_count)
+        json_dict['all_all_money']=str(all_money)
+        json_dict['ave_shop']=str(ave_shop)
+        json_dict['shop_list']=sq
+        json_dict['cate_list']=cate_list
+        all_json.append(json_dict)
+
+        db.close()
+        jsondu=json.dumps(all_json,ensure_ascii=False)
+        redis_conn.set(cheak_key, jsondu)
+        redis_conn.expire(cheak_key, 86400)
     return jsondu
 
 app.register_blueprint(api, url_prefix='/')
