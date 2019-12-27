@@ -2,6 +2,9 @@ import openpyxl
 import pymysql
 import uuid
 
+"""
+把财务的门店基础信息导入到数据库的门店基础信息表里面
+"""
 filepath='C:\\Users\\tl\\Documents\\门店基础信息表for技术-20191128.xlsx'
 wb = openpyxl.load_workbook(filepath)
 

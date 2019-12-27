@@ -2,7 +2,9 @@
 from flask import Flask, request
 import pymysql
 import json
-
+"""
+溯源接口
+"""
 app = Flask(__name__)
 
 # pool = PooledDB(pymysql,5,host='bj-cdb-cwu7v42u.sql.tencentcdb.com',user='root',passwd='xmxc1234',db='test',port=62864) #5为连接池里的最少连接数

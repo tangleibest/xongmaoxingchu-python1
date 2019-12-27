@@ -12,6 +12,9 @@ import datetime
 import pandas as pd
 import redis
 
+"""
+接口连接redis测试
+"""
 app = Flask(__name__)
 
 

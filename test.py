@@ -1,9 +1,19 @@
-import redis
-#redis连接池
-pool = redis.ConnectionPool(host='139.199.112.205', port=6379,password='xmxc1234',db=1, decode_responses=True)
-redis_conn = redis.Redis(connection_pool=pool)
+import calendar
+import time,datetime
 
-a=redis_conn.hgetall("/api/getCateShop")
-b=redis_conn.hget('/api/getCateShop','116.49432,39.97605')
-for row in a:
-    print(row)
+# this_month_mk = time.mktime(datetime.date.today().timetuple())
+#
+# this_time=int(time.time())
+# up_time=int(time.mktime(datetime.date(datetime.date.today().year, datetime.date.today().month, 30).timetuple()))
+# print(up_time)
+# print(up_time-this_time)
+
+# up_time = int(time.mktime(datetime.date(datetime.date.today().year, datetime.date.today().month - 1, 1).timetuple()))
+# to_time = int(time.mktime(datetime.date(datetime.date.today().year, datetime.date.today().month +1, 1).timetuple()))
+# print(up_time)
+# print(to_time)
+
+englist=calendar.month_abbr[12]
+print(englist)
+li=list(calendar.month_abbr).index('Dec')
+print(li)

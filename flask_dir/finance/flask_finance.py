@@ -10,6 +10,10 @@ import xlwt
 import time
 from openpyxl import load_workbook
 
+"""
+财务工具接口
+"""
+
 def set_style(font_name,font_colour,font_size,font_bold,underline,pattern_colour,ali_horz,ali_vert,left,right,top,bottom,italic):
     # 设置背景颜色
     pattern = xlwt.Pattern()
