@@ -11,6 +11,7 @@ import time
 import datetime
 import pandas as pd
 import redis
+import numpy as np
 
 app = Flask(__name__)
 CORS(app, supports_credentials=True)
@@ -261,6 +262,99 @@ xm_project_dict = {"百脑汇": ["北京", "北京市朝阳区朝外大街99号�
                    }
 
 
+# 两个点对比返回数据
+def get_two_date(results, lat1, lng1):
+    first_3km_list = []
+    first_2km_list = []
+    first_1km_list = []
+    for row in results:
+        month_sale = int(row[0])
+        latitude = row[1]
+        longitude = row[2]
+        dis = getDistance(float(latitude), float(longitude), float(lat1), float(lng1))
+        if dis <= 1:
+            first_3km_list.append(month_sale)
+            first_2km_list.append(month_sale)
+            first_1km_list.append(month_sale)
+        elif dis <= 2 and dis > 1:
+            first_3km_list.append(month_sale)
+            first_2km_list.append(month_sale)
+        elif dis <= 3 and dis > 2:
+            first_3km_list.append(month_sale)
+    first_3km_list = sorted(first_3km_list)
+    first_2km_list = sorted(first_2km_list)
+    first_1km_list = sorted(first_1km_list)
+    first_median_3km = np.median(first_3km_list)
+    first_median_2km = np.median(first_2km_list)
+    first_median_1km = np.median(first_1km_list)
+    first_sum_3km = np.sum(first_3km_list)
+    first_sum_2km = np.sum(first_2km_list)
+    first_sum_1km = np.sum(first_1km_list)
+    first_shop_count_3km = len(first_3km_list)
+    first_shop_count_2km = len(first_2km_list)
+    first_shop_count_1km = len(first_1km_list)
+    dict_first_3km = {}
+    dict_first_3km['sale_median'] = first_median_3km
+    dict_first_3km['sale_sum'] = float(first_sum_3km)
+    dict_first_3km['shop_count'] = float(first_shop_count_3km)
+    dict_first_3km['shop_sale_ave'] = float(first_sum_3km) / float(first_shop_count_3km)
+
+    dict_first_2km = {}
+    dict_first_2km['sale_median'] = first_median_2km
+    dict_first_2km['sale_sum'] = float(first_sum_2km)
+    dict_first_2km['shop_count'] = float(first_shop_count_2km)
+    dict_first_2km['shop_sale_ave'] = float(first_sum_2km) / float(first_shop_count_2km)
+
+    dict_first_1km = {}
+    dict_first_1km['sale_median'] = first_median_1km
+    dict_first_1km['sale_sum'] = float(first_sum_1km)
+    dict_first_1km['shop_count'] = float(first_shop_count_1km)
+    dict_first_1km['shop_sale_ave'] = float(first_sum_1km) / float(first_shop_count_1km)
+
+    first_list = [dict_first_3km, dict_first_2km, dict_first_1km]
+    return first_list
+
+
+# 两个点对比返回客单价
+def get_two_ave(results3, lat1, lng1):
+    sum_income_3km = 0
+    month_sale_3km = 0
+    sum_income_2km = 0
+    month_sale_2km = 0
+    sum_income_1km = 0
+    month_sale_1km = 0
+    for row3 in results3:
+        month_sale = int(row3[0])
+        latitude = row3[1]
+        longitude = row3[2]
+        ave = float(row3[4])
+
+        dis = getDistance(float(latitude), float(longitude), float(lat1), float(lng1))
+        if dis <= 1:
+            income = month_sale * ave
+            sum_income_3km += income
+            month_sale_3km += month_sale
+            sum_income_2km += income
+            month_sale_2km += month_sale
+            sum_income_1km += income
+            month_sale_1km += month_sale
+        elif dis <= 2 and dis > 1:
+            income = month_sale * ave
+            sum_income_3km += income
+            month_sale_3km += month_sale
+            sum_income_2km += income
+            month_sale_2km += month_sale
+        elif dis <= 3 and dis > 2:
+            income = month_sale * ave
+            sum_income_3km += income
+            month_sale_3km += month_sale
+    first_ave_money_3km = sum_income_3km / month_sale_3km
+    first_ave_money_2km = sum_income_2km / month_sale_2km
+    first_ave_money_1km = sum_income_1km / month_sale_1km
+    li = [first_ave_money_3km, first_ave_money_2km, first_ave_money_1km]
+    return li
+
+
 # 获取日期
 def getdate(beforeOfDay, strf):
     today = datetime.datetime.now()
@@ -452,6 +546,7 @@ def get_housing_info():
     return jsondatar
 
 
+# 基本信息
 @app.route('/api/getBaicInfo')
 def get_baic_info():
     """返回周边数据下周边配套数据及商场、酒店、高校、医院详情
@@ -2343,12 +2438,119 @@ def get_cate_shop_rank():
 
 
 # 两个点对比
-# @app.route('/api/getTwoShopCompare')
-# def get_two_shop_compare():
-#     cate_name = request.args.get("cate_name")
-#     first_location=request.args.get("first_location")
-#     second_location=request.args.get("second_location")
-#     platform=request.args.get("platform")
+@app.route('/api/getTwoShopCompare')
+def get_two_shop_compare():
+    """两个点对比
+            @@@
+            #### 参数列表
+
+            | 参数 | 描述 | 类型 | 例子 |
+            |--------|--------|--------|--------|
+            |    cate_name    |    品类名称    |    string   |    快餐便当    |
+            |    first_location    |    第一个经纬度    |    string   |    121.41815,31.2378    |
+            |    second_location    |    第二个经纬度    |    string   |    121.41815,31.2378    |
+            |    platform    |    平台名称（elm、mt）    |    string   |    mt    |
+            |    city_id    |    城市id    |    int   |    1    |
+
+            #### 字段解释
+
+            | 名称 | 描述 | 类型 |        |
+            |--------|--------|--------|--------|
+            |    first_list    |    第一个点数据列表    |    list   |    自空间    |
+            |    second_list    |    第二个点数据列表    |    list   |    1234323543    |
+            |    sale_median    |    中位值    |    double   |     581.5    |
+            |    sale_sum    |    总单量    |    double   |    723665    |
+            |    shop_count    |    店铺数    |    double   |    2132    |
+            |    shop_sale_ave    |    平均单量    |    double   |    215    |
+            |    income_ave    |    平均客单价（仅美团有）    |    double   |    24.54   |
+
+            #### return
+            - ##### json
+            > {"first_list": [{"first_median_3km": 470.0, "first_sum_3km": 555779.0, "first_shop_count_3km": 627.0}, {"first_median_2km": 521.0, "first_sum_2km": 379433.0, "first_shop_count_2km": 409.0}, {"first_median_1km": 535.0, "first_sum_1km": 164797.0, "first_shop_count_1km": 167.0}], "second_list": [{"first_median_3km": 660.5, "first_sum_3km": 590690.0, "first_shop_count_3km": 532.0}, {"first_median_2km": 684.5, "first_sum_2km": 285866.0, "first_shop_count_2km": 238.0}, {"first_median_1km": 808.5, "first_sum_1km": 131732.0, "first_shop_count_1km": 90.0}]}
+            @@@
+            """
+    cate_name = request.args.get("cate_name")
+    first_location = request.args.get("first_location")
+    second_location = request.args.get("second_location")
+    platform = request.args.get("platform")
+    city_id = request.args.get("city_id")
+    cheak_key = '/api/getTwoShopCompare' + cate_name + first_location + second_location + platform + city_id
+    res = redis_conn.exists(cheak_key)
+    if res == 1:
+        jsondatar = redis_conn.get(cheak_key)
+    else:
+        db_mapmarker = pool_mapmarkeronline.connection()
+        cur_mapmarker = db_mapmarker.cursor()
+
+        if city_id == '1':
+            city = 'beijing'
+        elif city_id == '2':
+            city = 'shanghai'
+        elif city_id == '3':
+            city = 'hangzhou'
+        elif city_id == '4':
+            city = 'shenzhen'
+        lat1 = str(first_location).split(",")[1]
+        lng1 = str(first_location).split(",")[0]
+        up_lat1 = float(lat1) + 0.04
+        down_lat1 = float(lat1) - 0.04
+        up_lng1 = float(lng1) + 0.05
+        down_lng1 = float(lng1) - 0.05
+
+        lat2 = str(second_location).split(",")[1]
+        lng2 = str(second_location).split(",")[0]
+        up_lat2 = float(lat2) + 0.04
+        down_lat2 = float(lat2) - 0.04
+        up_lng2 = float(lng2) + 0.05
+        down_lng2 = float(lng2) - 0.05
+
+        sql = "SELECT month_sale_num,latitude,longitude,update_time  from t_map_client_%s_%s_mark where update_time BETWEEN %s and %s and own_first_cate not in ('商店超市','果蔬生鲜','鲜花绿植','医药健康') and latitude BETWEEN '%s' and  " \
+              "'%s' and longitude BETWEEN '%s' and '%s' and own_set_cate='%s' and month_sale_num>0" % (
+              platform, city, up_time, to_time, down_lat1, up_lat1, down_lng1, up_lng1, cate_name)
+
+        sql2 = "SELECT month_sale_num,latitude,longitude,update_time  from t_map_client_%s_%s_mark where update_time BETWEEN %s and %s and own_first_cate not in ('商店超市','果蔬生鲜','鲜花绿植','医药健康') and latitude BETWEEN '%s' and  " \
+               "'%s' and longitude BETWEEN '%s' and '%s' and own_set_cate='%s' and month_sale_num>0" % (
+                   platform, city, up_time, to_time, down_lat2, up_lat2, down_lng2, up_lng2, cate_name)
+
+        cur_mapmarker.execute(sql)
+        results = cur_mapmarker.fetchall()
+        first_list = get_two_date(results, lat1, lng1)
+
+        cur_mapmarker.execute(sql2)
+        results2 = cur_mapmarker.fetchall()
+        second_list = get_two_date(results2, lat2, lng2)
+
+        if platform == 'mt':
+            sql3 = "SELECT month_sale_num,latitude,longitude,update_time,average_price  from t_map_client_%s_%s_mark where update_time BETWEEN %s and %s and own_first_cate not in ('商店超市','果蔬生鲜','鲜花绿植','医药健康') and latitude BETWEEN '%s' and  " \
+                   "'%s' and longitude BETWEEN '%s' and '%s' and own_set_cate='%s' and month_sale_num>0 and average_price is not null" % (
+                       platform, city, up_time, to_time, down_lat1, up_lat1, down_lng1, up_lng1, cate_name)
+            cur_mapmarker.execute(sql3)
+            results3 = cur_mapmarker.fetchall()
+            first_ave_list = get_two_ave(results3, lat1, lng1)
+
+            sql4 = "SELECT month_sale_num,latitude,longitude,update_time,average_price  from t_map_client_%s_%s_mark where update_time BETWEEN %s and %s and own_first_cate not in ('商店超市','果蔬生鲜','鲜花绿植','医药健康') and latitude BETWEEN '%s' and  " \
+                   "'%s' and longitude BETWEEN '%s' and '%s' and own_set_cate='%s' and month_sale_num>0 and average_price is not null" % (
+                       platform, city, up_time, to_time, down_lat2, up_lat2, down_lng2, up_lng2, cate_name)
+            cur_mapmarker.execute(sql4)
+            results4 = cur_mapmarker.fetchall()
+            second_ave_list = get_two_ave(results4, lat2, lng2)
+            first_list[0]['income_ave'] = first_ave_list[0]
+            first_list[1]['income_ave'] = first_ave_list[1]
+            first_list[2]['income_ave'] = first_ave_list[2]
+
+            second_list[0]['income_ave'] = second_ave_list[0]
+            second_list[1]['income_ave'] = second_ave_list[1]
+            second_list[2]['income_ave'] = second_ave_list[2]
+
+        json_dict = {}
+        json_dict['first_list'] = first_list
+        json_dict['second_list'] = second_list
+        jsondatar = json.dumps(json_dict, ensure_ascii=False)
+        redis_conn.set(cheak_key, jsondatar)
+        redis_conn.expire(cheak_key, 2592000)
+        db_mapmarker.close()
+
+    return jsondatar
 
 
 app.register_blueprint(api, url_prefix='/')
@@ -2356,4 +2558,4 @@ app.register_blueprint(platform, url_prefix='/platform')
 
 if __name__ == '__main__':
     # app.run(debug=True)
-    app.run(host="192.168.28.212", port=5001, debug=True, threaded=True)
+    app.run(host="0.0.0.0", port=5001, debug=True, threaded=True)
