@@ -1,4 +1,5 @@
 # coding:utf-8
+import calendar
 import math
 
 from DBUtils.PooledDB import PooledDB
@@ -21,8 +22,6 @@ ApiDoc(app)
 
 api = Blueprint('api', __name__)
 platform = Blueprint('platform', __name__)
-
-EARTH_REDIUS = 6378.137
 
 xm_cate_dict = {"粉面馆": "米粉面馆",
                 "中式快餐": "快餐便当",
@@ -258,7 +257,8 @@ xm_project_dict = {"百脑汇": ["北京", "北京市朝阳区朝外大街99号�
                    "中山西路店": ["上海", "上海市中山西路2368号106室", "121.431328,31.181053"],
                    "铸诚大厦": ["北京", "北京中关村南大街甲6号", "116.324353,39.964480"],
                    "自空间": ["北京", "北京自空间写字园E座", "116.504842,39.902526"],
-                   "星光影视园2F": ["北京", "北京市大兴区春和路39号院1号楼1单元101B、102B、103B、105B、107B、及106", "116.359053,39.773025"]
+                   "星光影视园2F": ["北京", "北京市大兴区春和路39号院1号楼1单元101B、102B、103B、105B、107B、及106", "116.359053,39.773025"],
+                   "星光影视园1F": ["北京", "北京市大兴区春和路39号院1号楼1单元101B、102B、103B、105B、107B、及106", "116.359053,39.773025"]
                    }
 
 
@@ -284,9 +284,21 @@ def get_two_date(results, lat1, lng1):
     first_3km_list = sorted(first_3km_list)
     first_2km_list = sorted(first_2km_list)
     first_1km_list = sorted(first_1km_list)
-    first_median_3km = np.median(first_3km_list)
-    first_median_2km = np.median(first_2km_list)
-    first_median_1km = np.median(first_1km_list)
+    if len(first_3km_list) == 0:
+        first_median_3km = 0.0
+    else:
+        first_median_3km = np.median(first_3km_list)
+
+    if len(first_2km_list) != 0:
+        first_median_2km = np.median(first_2km_list)
+    else:
+        first_median_2km = 0.0
+
+    if len(first_1km_list) != 0:
+        first_median_1km = np.median(first_1km_list)
+    else:
+        first_median_1km = 0.0
+
     first_sum_3km = np.sum(first_3km_list)
     first_sum_2km = np.sum(first_2km_list)
     first_sum_1km = np.sum(first_1km_list)
@@ -297,22 +309,55 @@ def get_two_date(results, lat1, lng1):
     dict_first_3km['sale_median'] = first_median_3km
     dict_first_3km['sale_sum'] = float(first_sum_3km)
     dict_first_3km['shop_count'] = float(first_shop_count_3km)
-    dict_first_3km['shop_sale_ave'] = float(first_sum_3km) / float(first_shop_count_3km)
+    if float(first_shop_count_3km) != 0.0:
+        shop_sale_ave = int(float(first_sum_3km) / float(first_shop_count_3km))
+    else:
+        shop_sale_ave = 0
+    dict_first_3km['shop_sale_ave'] = shop_sale_ave
 
     dict_first_2km = {}
     dict_first_2km['sale_median'] = first_median_2km
     dict_first_2km['sale_sum'] = float(first_sum_2km)
     dict_first_2km['shop_count'] = float(first_shop_count_2km)
-    dict_first_2km['shop_sale_ave'] = float(first_sum_2km) / float(first_shop_count_2km)
+    if float(first_shop_count_2km) != 0.0:
+        shop_sale_ave = int(float(first_sum_2km) / float(first_shop_count_2km))
+    else:
+        shop_sale_ave = 0
+    dict_first_2km['shop_sale_ave'] = shop_sale_ave
 
     dict_first_1km = {}
     dict_first_1km['sale_median'] = first_median_1km
     dict_first_1km['sale_sum'] = float(first_sum_1km)
     dict_first_1km['shop_count'] = float(first_shop_count_1km)
-    dict_first_1km['shop_sale_ave'] = float(first_sum_1km) / float(first_shop_count_1km)
+    if float(first_shop_count_1km) != 0.0:
+        shop_sale_ave = int(float(first_sum_1km) / float(first_shop_count_1km))
+    else:
+        shop_sale_ave = 0
+    dict_first_1km['shop_sale_ave'] = shop_sale_ave
 
     first_list = [dict_first_3km, dict_first_2km, dict_first_1km]
     return first_list
+
+
+# 两个点对比下的建筑物信息
+def get_two_data_buildings(results, lat1, lng1):
+    first_3km = 0
+    first_2km = 0
+    first_1km = 0
+    for row in results:
+        longitude = row[0]
+        latitude = row[1]
+        dis = getDistance(float(latitude), float(longitude), float(lat1), float(lng1))
+        if dis <= 1:
+            first_1km += 1
+            first_2km += 1
+            first_3km += 1
+        elif dis <= 2 and dis > 1:
+            first_2km += 1
+            first_3km += 1
+        elif dis <= 3 and dis > 2:
+            first_3km += 1
+    return [first_3km, first_2km, first_1km]
 
 
 # 两个点对比返回客单价
@@ -348,9 +393,21 @@ def get_two_ave(results3, lat1, lng1):
             income = month_sale * ave
             sum_income_3km += income
             month_sale_3km += month_sale
-    first_ave_money_3km = sum_income_3km / month_sale_3km
-    first_ave_money_2km = sum_income_2km / month_sale_2km
-    first_ave_money_1km = sum_income_1km / month_sale_1km
+    if month_sale_3km != 0:
+        first_ave_money_3km = round(sum_income_3km / month_sale_3km, 2)
+    else:
+        first_ave_money_3km = 0
+
+    if month_sale_2km != 0:
+        first_ave_money_2km = round(sum_income_2km / month_sale_2km, 2)
+    else:
+        first_ave_money_2km = 0
+
+    if month_sale_1km != 0:
+        first_ave_money_1km = round(sum_income_1km / month_sale_1km, 2)
+    else:
+        first_ave_money_1km = 0
+
     li = [first_ave_money_3km, first_ave_money_2km, first_ave_money_1km]
     return li
 
@@ -365,7 +422,44 @@ def getdate(beforeOfDay, strf):
     return re_date
 
 
+# 获前几个月第一天
+def getTheMonth(n, strf):
+    date = datetime.datetime.today()
+    month = date.month
+    year = date.year
+    for i in range(n):
+        if month == 1:
+            year -= 1
+            month = 12
+        else:
+            month -= 1
+    return datetime.date(year, month, 1).strftime(strf)
+
+
+# 把格式化转化成时间戳
+def str_to_timestamp(str_time=None, format='%Y-%m-%d'):
+    if str_time:
+        time_tuple = time.strptime(str_time, format)  # 把格式化好的时间转换成元祖
+        result = time.mktime(time_tuple)  # 把时间元祖转换成时间戳
+        return int(result)
+    return int(time.time())
+
+
+# 获取上个月第一天时间戳
+up_time = int(str_to_timestamp(getTheMonth(1, '%Y-%m-%d')))
+# 获取上个月最后一天时间戳
+to_time = int(time.mktime(datetime.date(datetime.date.today().year, datetime.date.today().month, 1).timetuple()))
+
+# 获取上个月第一天格式化时间
+fist = getTheMonth(1, '%Y-%m-%d')
+# six_month_time = int(str_to_timestamp(getTheMonth(1,'%Y-%m-%d')))
+# last_month = datetime.date.today().month - 1
+
+
 # 计算两个经纬度之间的距离
+EARTH_REDIUS = 6378.137
+
+
 def rad(d):
     return d * math.pi / 180.0
 
@@ -397,13 +491,6 @@ pool_project = PooledDB(pymysql, 5, host='rm-hp364ebpsp6649ra0bo.mysql.huhehaote
 
 pool_statistics = PooledDB(pymysql, 5, host='39.104.130.52', user='root', passwd='xmxc1234', db='statistics',
                            port=3520)
-
-# 获取时间
-up_time = int(time.mktime(datetime.date(datetime.date.today().year, datetime.date.today().month - 1, 1).timetuple()))
-to_time = int(time.mktime(datetime.date(datetime.date.today().year, datetime.date.today().month, 1).timetuple()))
-six_month_time = int(
-    time.mktime(datetime.date(datetime.date.today().year, datetime.date.today().month - 6, 1).timetuple()))
-last_month = datetime.date.today().month - 1
 
 
 # 返回写字楼数据
@@ -525,7 +612,7 @@ def get_housing_info():
     down_lng = float(lng) - 0.05
     sql = "SELECT uptown_name,longitude,latitude from t_map_lianjia_uptown where longitude !='不明' and " \
           "city='%s' and latitude BETWEEN '%s' and '%s' and longitude BETWEEN '%s' and '%s'" % (
-          city, down_lat, up_lat, down_lng, up_lng)
+              city, down_lat, up_lat, down_lng, up_lng)
     sq = []
     cur.execute(sql)
     results = cur.fetchall()
@@ -546,10 +633,10 @@ def get_housing_info():
     return jsondatar
 
 
-# 基本信息
+# 返回周边数据下周边配套数据及商场、酒店、高校、医院详情(餐饮数量是两个平台总和)
 @app.route('/api/getBaicInfo')
 def get_baic_info():
-    """返回周边数据下周边配套数据及商场、酒店、高校、医院详情
+    """返回周边数据下周边配套数据及商场、酒店、高校、医院详情(餐饮数量是两个平台总和)
 
         @@@
         #### 参数列表
@@ -621,9 +708,10 @@ def get_baic_info():
             city = 'shenzhen'
         sql_house = "SELECT longitude,latitude from t_map_lianjia_uptown where longitude !='不明' and city='%s'" % city_name
         sql_office = "SELECT longitude,latitude from t_map_office_building where longitude !='不明' and b_city='%s'" % city_name
-        sql_food = "SELECT latitude,longitude from t_map_client_mt_%s_mark where update_time BETWEEN %s and %s and latitude BETWEEN '%s' and  " \
-                   "'%s' and longitude BETWEEN '%s' and '%s'" % (
-                   city, up_time, to_time, down_lat, up_lat, down_lng, up_lng)
+        sql_food = "SELECT latitude,longitude from t_map_client_mt_%s_mark where update_time BETWEEN %s and %s and latitude BETWEEN '%s' and  '%s' and longitude BETWEEN '%s' and '%s' union all" \
+                   " SELECT latitude,longitude from t_map_client_elm_%s_mark where update_time BETWEEN %s and %s and latitude BETWEEN '%s' and  '%s' and longitude BETWEEN '%s' and '%s'" % (
+                       city, up_time, to_time, down_lat, up_lat, down_lng, up_lng, city, up_time, to_time, down_lat,
+                       up_lat, down_lng, up_lng)
         sq = []
 
         # 执行小区sql，获取数据
@@ -740,10 +828,10 @@ def get_baic_info():
     return jsondatar
 
 
-# 返回月销量统计
+# 返回月销量统计(数量是两个平台总和)
 @app.route('/api/getShopBasic')
 def get_shop_basic():
-    """月销量统计
+    """月销量统计(数量是两个平台总和)
 
             @@@
             #### 参数列表
@@ -755,11 +843,14 @@ def get_shop_basic():
             |    city_id    |    城市id （1：北京，2：上海，3：杭州，4：深圳）    |    string   |    1   |
 
 
+
             #### 字段解释
 
             | 名称 | 描述 | 类型 |
             |--------|--------|--------|--------|
-            |    city_sale_money    |    全城销量总数    |    int   |
+            |    update_time    |    更新时间    |    int   |
+            |    city_sale_money    |    全城月销量    |    int   |
+            |    city_sale_count    |    全城店铺数   |    int   |
             |    dis_sale_money    |    区域销量总数    |    int   |
             |    dis_sale_count    |    区域商铺总数   |    int   |
             |    dis_ave_shop_sale    |    区域单店均销量    |    double   |
@@ -796,17 +887,24 @@ def get_shop_basic():
         down_lat = float(lat) - 0.04
         up_lng = float(lng) + 0.05
         down_lng = float(lng) - 0.05
-        sql = "SELECT month_sale_num,latitude,longitude,update_time  from t_map_client_mt_%s_mark where update_time BETWEEN %s and %s and own_first_cate not in ('商店超市','果蔬生鲜','鲜花绿植','医药健康') and latitude BETWEEN '%s' and  " \
-              "'%s' and longitude BETWEEN '%s' and '%s'" % (city, up_time, to_time, down_lat, up_lat, down_lng, up_lng)
+        sql = "SELECT month_sale_num,latitude,longitude,update_time  from t_map_client_mt_%s_mark where update_time BETWEEN %s and %s and month_sale_num!=0 and own_set_cate not in ('其他品类','超市便利') and latitude BETWEEN '%s' and  '%s' and longitude BETWEEN '%s' and '%s' union all " \
+              "SELECT month_sale_num,latitude,longitude,update_time  from t_map_client_elm_%s_mark where update_time BETWEEN %s and %s and month_sale_num!=0 and own_set_cate not in ('其他品类','超市便利') and own_first_cate not in ('商店超市','果蔬生鲜','鲜花绿植','医药健康') and latitude BETWEEN '%s' and  '%s' and longitude BETWEEN '%s' and '%s'" % (
+                  city, up_time, to_time, down_lat, up_lat, down_lng, up_lng, city, up_time, to_time, down_lat, up_lat,
+                  down_lng, up_lng)
+        # sql = "SELECT month_sale_num,latitude,longitude,update_time  from t_map_client_mt_%s_mark where update_count=11 and month_sale_num!=0 and own_set_cate not in ('其他品类','超市便利') and latitude BETWEEN '%s' and  '%s' and longitude BETWEEN '%s' and '%s' union all " \
+        #       "SELECT month_sale_num,latitude,longitude,update_time  from t_map_client_elm_%s_mark where update_time BETWEEN %s and %s and month_sale_num!=0 and own_set_cate not in ('其他品类','超市便利') and own_first_cate not in ('商店超市','果蔬生鲜','鲜花绿植','医药健康') and latitude BETWEEN '%s' and  '%s' and longitude BETWEEN '%s' and '%s'" % (
+        #           city, down_lat, up_lat, down_lng, up_lng, city, up_time, to_time, down_lat, up_lat,
+        #           down_lng, up_lng)
+
         cur.execute(sql)
         results = cur.fetchall()
         sq = []
-        sql_city = "SELECT sum(month_sale_num),count(*) from t_map_client_mt_%s_mark where update_time BETWEEN %s and %s and own_first_cate not in ('商店超市','果蔬生鲜','鲜花绿植','医药健康')" % (
-        city, up_time, to_time)
+        sql_city = "SELECT sum(month_sale_num),count(*) from t_map_client_mt_%s_mark where update_time BETWEEN %s and %s and own_set_cate not in ('其他品类','超市便利') union all SELECT sum(month_sale_num),count(*) from t_map_client_elm_%s_mark where update_time BETWEEN %s and %s and own_set_cate not in ('其他品类','超市便利')" % (
+            city, up_time, to_time, city, up_time, to_time)
         cur1.execute(sql_city)
         results1 = cur1.fetchall()
-        city_month_sale = int(results1[0][0])
-        city_shop_count = int(results1[0][1])
+        city_month_sale = int(results1[0][0]) + int(results1[1][0])
+        city_shop_count = int(results1[0][1]) + int(results1[1][1])
         if len(results) > 0:
             update_time = results[0][3]
             dis_sale_money = 0
@@ -849,10 +947,10 @@ def get_shop_basic():
     return jsondatar
 
 
-# 返回人均
+# 返回餐饮人均消费及月销量统计下的区域客单价（只计算美团）
 @app.route('/api/getAveMoney')
 def get_ave_money():
-    """返回餐饮人均消费及月销量统计下的区域客单价
+    """返回餐饮人均消费及月销量统计下的区域客单价（只计算美团）
         @@@
         #### 参数列表
 
@@ -901,10 +999,10 @@ def get_ave_money():
         down_lat = float(lat) - 0.04
         up_lng = float(lng) + 0.05
         down_lng = float(lng) - 0.05
-        sql = "SELECT average_price,latitude,longitude from t_map_client_mt_%s_mark where update_time BETWEEN %s and %s and latitude BETWEEN '%s' and '%s' and longitude BETWEEN '%s' and '%s' and average_price is not NULL and average_price !='' and own_first_cate not in ('商店超市','果蔬生鲜','鲜花绿植','医药健康')" % (
+        sql = "SELECT average_price,latitude,longitude,month_sale_num from t_map_client_mt_%s_mark where update_time BETWEEN %s and %s and latitude BETWEEN '%s' and '%s' and longitude BETWEEN '%s' and '%s' and average_price is not NULL and average_price !='' and own_set_cate !='超市便利'" % (
             city, up_time, to_time, down_lat, up_lat, down_lng, up_lng)
 
-        city_sql = "SELECT SUM(average_price)/COUNT(1) from t_map_client_mt_%s_mark where update_time BETWEEN %s and %s and average_price is not NULL and average_price !=''  and own_first_cate not in ('商店超市','果蔬生鲜','鲜花绿植','医药健康') GROUP BY update_count " % (
+        city_sql = "SELECT SUM(average_price*month_sale_num)/sum(month_sale_num) from t_map_client_mt_%s_mark where update_time BETWEEN %s and %s and average_price is not NULL and average_price !=''  and own_set_cate !='超市便利' GROUP BY update_count " % (
             city, up_time, to_time)
         cur.execute(sql)
         results = cur.fetchall()
@@ -924,8 +1022,9 @@ def get_ave_money():
 
             dis = getDistance(float(latitude), float(longitude), float(lat), float(lng))
             if dis <= float(distance):
-                dis_sale_money = dis_sale_money + float(average_price)
-                dis_sale_count = dis_sale_count + 1
+                income = int(row[3]) * float(average_price)
+                dis_sale_money += income
+                dis_sale_count += row[3]
         if dis_sale_count == 0:
             dis_ave_shop_sale = 0
         else:
@@ -940,11 +1039,10 @@ def get_ave_money():
     return jsondatar
 
 
-# 返回周边品类榜
+# 返回周边品类榜（根据参数区分平台，客单价只有美团）
 @app.route('/api/getCate')
 def get_cate():
-    """返回周边品类榜
-
+    """返回周边品类榜（根据参数区分平台，客单价只有美团）
             @@@
             #### 参数列表
 
@@ -1128,10 +1226,10 @@ def get_cate():
     return jsondatar
 
 
-# 返回菜品销量榜
+# 返回菜品销量榜（根据参数区分平台）
 @app.route('/api/getFood')
 def get_food():
-    """返回菜品月度销量榜
+    """返回菜品月度销量榜（根据参数区分平台）
 
         @@@
         #### 参数列表
@@ -1196,10 +1294,10 @@ def get_food():
     sql_food = ''
     if platform == 'mt':
         sql_food = "SELECT food_name,SUM(month_sale) sum_sale from t_map_client_%s_%s_mark_food where month_sale is not null and update_count=%s and client_id in (%s) GROUP BY food_name order by sum_sale desc limit 50" % (
-        platform, city, update_count, str_shop_id)
+            platform, city, update_count, str_shop_id)
     elif platform == 'elm':
         sql_food = "SELECT food_name,SUM(month_sale) sum_sale from t_map_client_%s_%s_mark_food where month_sale is not null and update_count=%s and shop_id in (%s) GROUP BY food_name order by sum_sale desc limit 50" % (
-        platform, city, update_count, str_shop_id)
+            platform, city, update_count, str_shop_id)
 
     cur.execute(sql_food)
     results_food = cur.fetchall()
@@ -1214,10 +1312,10 @@ def get_food():
     return jsondatar
 
 
-# 返回销售趋势
+# 返回周边数据、门店数据下销售趋势（根据参数区分平台）
 @app.route('/api/getLineChart')
 def get_line_chart():
-    """返回周边数据、门店数据下销售趋势
+    """返回周边数据、门店数据下销售趋势（根据参数区分平台）
 
         @@@
         #### 参数列表
@@ -1275,7 +1373,7 @@ def get_line_chart():
             datetime.date(datetime.date.today().year, datetime.date.today().month, 1) - datetime.timedelta(1)).replace(
             '-', '')
         get_update_sql = "SELECT update_count FROM t_map_client_%s_%s_mark where update_time BETWEEN %s and %s limit 1" % (
-        platform, city, up_time, to_time)
+            platform, city, up_time, to_time)
         cur.execute(get_update_sql)
         results_get_update = cur.fetchall()
         last_month_update_count = results_get_update[0][0]
@@ -1370,10 +1468,10 @@ def get_line_chart():
     return jsondatar
 
 
-# 返回品类下商户
+# 返回品类下商户（根据参数区分平台，客单价只有美团有）
 @app.route('/api/getCateShop')
 def get_cate_shop():
-    """返回周边配套餐饮商户名单
+    """返回周边配套餐饮商户名单（根据参数区分平台，客单价只有美团有）
 
     @@@
     #### 参数列表
@@ -1539,30 +1637,30 @@ def get_race():
 @app.route('/api/getProjectList')
 def get_project_list():
     """获取门店列表
-
     @@@
     #### 参数列表
-
     | 参数 | 描述 | 类型 | 例子 |
     |--------|--------|--------|--------|
     |    city_id    |    城市id （1：北京，2：上海，3：杭州，4：深圳）   |   string    |   1    |
-
     #### 字段解释
-
-    | 名称 | 描述 | 类型 |
+    | 名称 | 描述 | 类型 |    例子   |
     |--------|--------|--------|--------|
-    |    project_id    |    项目id    |    long   |
-    |    project_name    |    项目名称    |    string   |
-    |    address    |    地址    |    string   |
-    |    latitude    |    纬度    |    string   |
-    |    longitude    |    经度    |    string   |
-
+    |    project_id    |    项目id    |    long   |    12985728284   |
+    |    project_name    |    项目名称    |    string   |    新荟城   |
+    |    address    |    地址    |    string   |    北京市朝阳区新荟城   |
+    |    latitude    |    纬度    |    string   |    35.356365   |
+    |    longitude    |    经度    |    string   |    127.3636336 |
+    |    month_sale    |    月销量    |    int   |    3421832   |
+    |    shop_count    |    店铺数    |    int   |    3421   |
+    |    shop_ave    |    客单价    |    double   |    25.255   |
     #### return
     - ##### json
     > [{"project_id": 1548233981349868, "project_name": "自空间", "address": "北京市朝阳区石门东路", "latitude": "39.9028700000000000", "longitude": "116.5030800000000000"}]
     @@@
     """
     db = pool_project.connection()
+    db_map = pool_mapmarkeronline.connection()
+    cur_map = db_map.cursor()
     cur = db.cursor()
     city_id = request.args.get('city_id')
     cheak_key = '/api/getProjectList' + city_id
@@ -1579,32 +1677,56 @@ def get_project_list():
             city_name = '杭州'
         elif city_id == '4':
             city_name = '深圳'
+        # 查询门店经纬度、id、名称
         sql = "SELECT a.project_id,a.project_name,b.address,b.latitude,b.longitude from project a LEFT JOIN development.project_base_info b on a.project_id=b.tid WHERE b.address is not null and b.latitude is not null and b.longitude  is not null and  a.area_name='%s'" % city_name
-        print(sql)
-        # 1548233984304802
-        # 原先 44515801327616
-
         cur.execute(sql)
         results = cur.fetchall()
+        # 查询门店范围3km单量和外卖店铺数（饿了么加美团）
+        sql_shop_info = "SELECT project_id,sum(month_sale_num_elm_3),sum(month_sale_num_mt_3),sum(shop_num_elm_3),sum(shop_num_mt_3) from t_map_h5_cate where update_time='%s' and cate_name not in ('其他品类','超市便利') GROUP BY project_id" % fist
+        cur_map.execute(sql_shop_info)
+        results_shop_info = cur_map.fetchall()
+        # 查询门店范围3km平均客单价（仅美团）
+        sql_ave = "SELECT project_id,SUM(month_sale_num*ave_price)/SUM(month_sale_num) from t_map_h5_shop where update_time='%s' and cate_name not in ('其他品类','超市便利') and ave_price >0 GROUP BY project_id" % fist
+        cur_map.execute(sql_ave)
+        results_ave = cur_map.fetchall()
+        shop_info_dict = {}
+        shop_ave_dict = {}
+
+        for row in results_shop_info:
+            shop_info_dict[row[0]] = [int(row[1]) + int(row[2]), int(row[3]) + int(row[4])]
+
+        for row in results_ave:
+            shop_ave_dict[row[0]] = float(row[1])
+
         sq = []
+        print(results)
         for row in results:
+            print(row)
             data = {}
             project_name = row[1]
+
             project_id = row[0]
             project_list = xm_project_dict.get(project_name)
             address = project_list[1]
             latitude = project_list[2].split(',')[1]
             longitude = project_list[2].split(',')[0]
+            month_sale = shop_info_dict.get(project_id, [0, 0])[0]
+            shop_count = shop_info_dict.get(project_id, [0, 0])[1]
+            shop_ave = shop_ave_dict.get(project_id, 0)
             data['project_id'] = project_id
             data['project_name'] = project_name
             data['address'] = address
             data['latitude'] = latitude
             data['longitude'] = longitude
+            data['month_sale'] = month_sale
+            data['shop_count'] = shop_count
+            data['shop_ave'] = shop_ave
             sq.append(data)
         jsondu = json.dumps(sq, ensure_ascii=False)
         redis_conn.set(cheak_key, jsondu)
         redis_conn.expire(cheak_key, 86400)
         pool_project.close()
+        pool_mapmarkeronline.close()
     return jsondu
 
 
@@ -1721,7 +1843,7 @@ def get_xmxc_shop():
         start_time = getdate(30, '%Y%m%d')
         end_time = getdate(1, '%Y%m%d')
         sql = "SELECT merchant_id,merchant_name,SUM(order_count),SUM(sale_amount) from merchant_statistics where project_id=%s and  stream_date BETWEEN '%s' and '%s' GROUP BY merchant_id" % (
-        project_id, start_time, end_time)
+            project_id, start_time, end_time)
 
         cur.execute(sql)
         results = cur.fetchall()
@@ -1784,10 +1906,10 @@ def get_xmxc_shop():
     return jsondu
 
 
-# 返回推荐品类
+# 返回推荐品类（根据参数区分平台）
 @app.route('/api/getCateRecommend')
 def get_cate_recommend():
-    """返回推荐品类
+    """返回推荐品类（根据参数区分平台，客单价只有美团有）
         @@@
         #### 参数列表
 
@@ -1816,7 +1938,7 @@ def get_cate_recommend():
     db = pool_project.connection()
     db_mapmarker = pool_mapmarkeronline.connection()
     # db = pool_statistics.connection()
-    fist = datetime.date(datetime.date.today().year, datetime.date.today().month - 1, 1)
+
     last = datetime.date(datetime.date.today().year, datetime.date.today().month, 1) - datetime.timedelta(1)
 
     cur = db.cursor()
@@ -1828,13 +1950,14 @@ def get_cate_recommend():
         jsondu = redis_conn.get(cheak_key)
     else:
         sql = "SELECT * from t_map_h5_cate where cate_name not in ('None','其他品类','超市便利') and update_time BETWEEN '%s' and '%s' and project_id=%s" % (
-        fist, last, project_id)
+            fist, last, project_id)
+
         cur_mapmarker = db_mapmarker.cursor()
         cur_mapmarker.execute(sql)
         results = cur_mapmarker.fetchall()
 
         sql_all_ave = "SELECT sum(ave_price*month_sale_num)/SUM(month_sale_num) from t_map_h5_shop where project_id=%s and ave_price>0 and platform='mt' and cate_name not in ('None','其他品类','超市便利') and update_time BETWEEN '%s' and '%s'" % (
-        project_id, fist, last)
+            project_id, fist, last)
 
         cur_mapmarker.execute(sql_all_ave)
         results_all_ave = cur_mapmarker.fetchall()
@@ -1940,10 +2063,10 @@ def get_cate_recommend():
     return jsondu
 
 
-# 返回推荐品类下商户
+# 返回推荐品类下商户（只有美团）
 @app.route('/api/getCateRecommendShop')
 def get_cate_recommend_shop():
-    """返回推荐品类下商户
+    """返回推荐品类下商户（只有美团）
 
             @@@
             #### 参数列表
@@ -1971,13 +2094,13 @@ def get_cate_recommend_shop():
             """
 
     db_mapmarker = pool_mapmarkeronline.connection()
-    fist = datetime.date(datetime.date.today().year, datetime.date.today().month - 1, 1)
+
     last = datetime.date(datetime.date.today().year, datetime.date.today().month, 1) - datetime.timedelta(1)
     cur_mapmarker = db_mapmarker.cursor()
     project_id = request.args.get("project_id")
     cate_name = request.args.get("cate_name")
     sql = "SELECT * from t_map_h5_shop where platform='mt' and  update_time BETWEEN '%s' and '%s' and  project_id=%s and cate_name='%s'" % (
-    fist, last, project_id, cate_name)
+        fist, last, project_id, cate_name)
 
     cur_mapmarker.execute(sql)
     results = cur_mapmarker.fetchall()
@@ -1985,6 +2108,7 @@ def get_cate_recommend_shop():
     sq = []
     re_dict = {}
     all_income = 0
+    income_month_sale = 0
     for row in results:
         shop_dict = {}
         month_sale = row[5]
@@ -1994,14 +2118,16 @@ def get_cate_recommend_shop():
         shop_dict['month_sale'] = row[5]
         shop_dict['ave_price'] = row[6]
         if row[6] > 0:
-            all_income += row[6] * row[5]
+            income = row[6] * row[5]
+            all_income += income
+            income_month_sale += month_sale
         shop_dict['distance'] = row[8]
         sq.append(shop_dict)
     sq1 = sorted(sq, key=lambda x: x["month_sale"], reverse=True)
-    if all_month_sale == 0:
+    if income_month_sale == 0:
         cate_ave = 0
     else:
-        cate_ave = all_income / all_month_sale
+        cate_ave = all_income / income_month_sale
     re_dict['all_month_sale'] = all_month_sale
     re_dict['cate_ave'] = cate_ave
     re_dict['shop_list'] = sq1
@@ -2010,10 +2136,10 @@ def get_cate_recommend_shop():
     return jsondu
 
 
-# 返回推荐品类下客单价区间
+# 返回推荐品类下客单价区间(只有美团)
 @app.route('/api/getCateAveSection')
 def get_cate_ave_section():
-    """返回推荐品类下客单价区间
+    """返回推荐品类下客单价区间(只有美团)
         @@@
         #### 参数列表
         | 参数 | 描述 | 类型 | 例子 |
@@ -2039,7 +2165,7 @@ def get_cate_ave_section():
         """
 
     db_mapmarker = pool_mapmarkeronline.connection()
-    fist = datetime.date(datetime.date.today().year, datetime.date.today().month - 1, 1)
+
     last = datetime.date(datetime.date.today().year, datetime.date.today().month, 1) - datetime.timedelta(1)
     cur_mapmarker = db_mapmarker.cursor()
     project_id = request.args.get("project_id")
@@ -2094,10 +2220,10 @@ def get_cate_ave_section():
     return jsondu
 
 
-# 返回推荐品类下客单价趋势
+# 返回推荐品类下客单价趋势（只有美团）
 @app.route('/api/getCateAveLine')
 def get_cate_ave_line():
-    """返回推荐品类下客单价趋势
+    """返回推荐品类下客单价趋势（只有美团）
             @@@
             #### 参数列表
             | 参数 | 描述 | 类型 | 例子 |
@@ -2122,11 +2248,11 @@ def get_cate_ave_line():
             """
 
     db_mapmarker = pool_mapmarkeronline.connection()
-    fist = datetime.date(datetime.date.today().year, datetime.date.today().month - 4, 1)
+    first = getTheMonth(4, '%Y-%m-%d')
 
-    month_3 = datetime.date(datetime.date.today().year, datetime.date.today().month - 3, 1)
-    month_2 = datetime.date(datetime.date.today().year, datetime.date.today().month - 2, 1)
-    month_1 = datetime.date(datetime.date.today().year, datetime.date.today().month - 1, 1)
+    month_3 = getTheMonth(3, '%Y-%m-%d')
+    month_2 = getTheMonth(2, '%Y-%m-%d')
+    month_1 = getTheMonth(1, '%Y-%m-%d')
 
     last = datetime.date(datetime.date.today().year, datetime.date.today().month, 1) - datetime.timedelta(1)
     cur_mapmarker = db_mapmarker.cursor()
@@ -2143,12 +2269,12 @@ def get_cate_ave_line():
               "union all SELECT 'between25_and35' ,update_time,cate_name,COUNT(*),SUM(month_sale_num) from t_map_h5_shop where platform='mt' and update_time BETWEEN '%s' and '%s' and  project_id=%s and cate_name='%s' and ave_price <=35 and ave_price>25 " \
               "GROUP BY update_time union all  SELECT 'more35', update_time,cate_name,COUNT(*),SUM(month_sale_num) from t_map_h5_shop where platform='mt' and update_time " \
               "BETWEEN '%s' and '%s' and  project_id=%s and cate_name='%s' and ave_price>35 GROUP BY update_time" % (
-              fist, last, project_id, cate_name, fist, last, project_id, cate_name, fist, last, project_id, cate_name,
-              fist, last, project_id, cate_name)
+                  first, last, project_id, cate_name, first, last, project_id, cate_name, first, last, project_id,
+                  cate_name, first, last, project_id, cate_name)
 
         cur_mapmarker.execute(sql)
         results = cur_mapmarker.fetchall()
-        time_dict = [str(fist), str(month_3), str(month_2), str(month_1)]
+        time_dict = [str(first), str(month_3), str(month_2), str(month_1)]
         less15 = []
         between15_and25 = []
         between25_and35 = []
@@ -2203,10 +2329,10 @@ def get_cate_ave_line():
     return jsondu
 
 
-# 返回推荐品类下品类走势图
+# 返回推荐品类下品类走势图（只有饿了么）
 @app.route('/api/getCateRecommendLine')
 def get_cate_recommend_line():
-    """返回推荐品类下品类走势图
+    """返回推荐品类下品类走势图（只有饿了么）
 
         @@@
         #### 参数列表
@@ -2233,7 +2359,7 @@ def get_cate_recommend_line():
         """
     db_mapmarker = pool_test.connection()
     # db = pool_statistics.connection()
-    fist = datetime.date(datetime.date.today().year, datetime.date.today().month - 5, 1)
+    first = getTheMonth(6, '%Y-%m-%d')
     last = datetime.date(datetime.date.today().year, datetime.date.today().month, 1) - datetime.timedelta(1)
     cur_mapmarker = db_mapmarker.cursor()
 
@@ -2248,10 +2374,10 @@ def get_cate_recommend_line():
     else:
         if platform == 'elm':
             sql = "SELECT cate_name,month_sale_num_elm_3,shop_num_elm_3,update_time from t_map_h5_cate where cate_name not in ('None','其他品类','超市便利') and update_time BETWEEN '%s' and '%s' and project_id=%s order by update_time" % (
-            fist, last, project_id)
+                first, last, project_id)
         elif platform == 'mt':
             sql = "SELECT cate_name,month_sale_num_mt_3,shop_num_mt_3,update_time from t_map_h5_cate where cate_name not in ('None','其他品类','超市便利') and update_time BETWEEN '%s' and '%s' and project_id=%s order by update_time" % (
-            fist, last, project_id)
+                first, last, project_id)
 
         cur_mapmarker.execute(sql)
         results = cur_mapmarker.fetchall()
@@ -2306,11 +2432,11 @@ def get_cate_list():
         jsondu = redis_conn.get(cheak_key)
     else:
         db_mapmarker = pool_mapmarkeronline.connection()
-        fist = datetime.date(datetime.date.today().year, datetime.date.today().month - 1, 1)
+
         last = datetime.date(datetime.date.today().year, datetime.date.today().month, 1) - datetime.timedelta(1)
         cur_mapmarker = db_mapmarker.cursor()
         sql = "SELECT cate_name from t_map_h5_cate  where cate_name not in ('None','其他品类','超市便利') and update_time BETWEEN '%s' and '%s' GROUP BY cate_name" % (
-        fist, last)
+            fist, last)
 
         cur_mapmarker.execute(sql)
         results = cur_mapmarker.fetchall()
@@ -2323,10 +2449,10 @@ def get_cate_list():
     return jsondu
 
 
-# 找店
+# 找店（饿了么美团加起来）
 @app.route('/api/getCatShopRank')
 def get_cate_shop_rank():
-    """返回推荐品类下门店推荐
+    """返回推荐品类下门店推荐（饿了么美团加起来）
         @@@
         #### 参数列表
 
@@ -2365,7 +2491,7 @@ def get_cate_shop_rank():
         db = pool_project.connection()
         db_mapmarker = pool_mapmarkeronline.connection()
         # db = pool_statistics.connection()
-        fist = datetime.date(datetime.date.today().year, datetime.date.today().month - 1, 1)
+
         last = datetime.date(datetime.date.today().year, datetime.date.today().month, 1) - datetime.timedelta(1)
         cur_mapmarker = db_mapmarker.cursor()
         cur = db.cursor()
@@ -2440,7 +2566,7 @@ def get_cate_shop_rank():
 # 两个点对比
 @app.route('/api/getTwoShopCompare')
 def get_two_shop_compare():
-    """两个点对比
+    """两个点对比(区分平台)
             @@@
             #### 参数列表
 
@@ -2463,6 +2589,12 @@ def get_two_shop_compare():
             |    shop_count    |    店铺数    |    double   |    2132    |
             |    shop_sale_ave    |    平均单量    |    double   |    215    |
             |    income_ave    |    平均客单价（仅美团有）    |    double   |    24.54   |
+            |    house_count    |    小区数量   |    double   |    24.54   |
+            |    office_count    |    写字楼数量    |    int   |    24  |
+            |    hospital_count    |    医院数量    |    int   |    24  |
+            |    school_count    |    学校数量    |    int   |    24  |
+            |    shopping_count    |    商场数量    |    int   |    24   |
+            |    hotal_count    |    酒店数量    |    int   |    24  |
 
             #### return
             - ##### json
@@ -2482,13 +2614,17 @@ def get_two_shop_compare():
         db_mapmarker = pool_mapmarkeronline.connection()
         cur_mapmarker = db_mapmarker.cursor()
 
-        if city_id == '1':
+        if city_id == "1":
+            city_name = "北京市"
             city = 'beijing'
-        elif city_id == '2':
+        elif city_id == "2":
+            city_name = "上海市"
             city = 'shanghai'
-        elif city_id == '3':
+        elif city_id == "3":
+            city_name = "杭州市"
             city = 'hangzhou'
-        elif city_id == '4':
+        elif city_id == "4":
+            city_name = "深圳市"
             city = 'shenzhen'
         lat1 = str(first_location).split(",")[1]
         lng1 = str(first_location).split(",")[0]
@@ -2504,13 +2640,23 @@ def get_two_shop_compare():
         up_lng2 = float(lng2) + 0.05
         down_lng2 = float(lng2) - 0.05
 
-        sql = "SELECT month_sale_num,latitude,longitude,update_time  from t_map_client_%s_%s_mark where update_time BETWEEN %s and %s and own_first_cate not in ('商店超市','果蔬生鲜','鲜花绿植','医药健康') and latitude BETWEEN '%s' and  " \
-              "'%s' and longitude BETWEEN '%s' and '%s' and own_set_cate='%s' and month_sale_num>0" % (
-              platform, city, up_time, to_time, down_lat1, up_lat1, down_lng1, up_lng1, cate_name)
+        # 如果传的cate_name为空字符串就返回全品类
+        if cate_name == '':
+            # 查询第一个点的数据
+            sql = "SELECT month_sale_num,latitude,longitude,update_time  from t_map_client_%s_%s_mark where update_time BETWEEN %s and %s and own_first_cate not in ('商店超市','果蔬生鲜','鲜花绿植','医药健康') and latitude BETWEEN '%s' and  '%s' and longitude BETWEEN '%s' and '%s'  and month_sale_num>0" % (
+                platform, city, up_time, to_time, down_lat1, up_lat1, down_lng1, up_lng1,)
+            # 查询第二个点的数据
+            sql2 = "SELECT month_sale_num,latitude,longitude,update_time  from t_map_client_%s_%s_mark where update_time BETWEEN %s and %s and own_first_cate not in ('商店超市','果蔬生鲜','鲜花绿植','医药健康') and latitude BETWEEN '%s' and  " \
+                   "'%s' and longitude BETWEEN '%s' and '%s'  and month_sale_num>0" % (
+                       platform, city, up_time, to_time, down_lat2, up_lat2, down_lng2, up_lng2,)
+        else:
+            sql = "SELECT month_sale_num,latitude,longitude,update_time  from t_map_client_%s_%s_mark where update_time BETWEEN %s and %s and own_first_cate not in ('商店超市','果蔬生鲜','鲜花绿植','医药健康') and latitude BETWEEN '%s' and  " \
+                  "'%s' and longitude BETWEEN '%s' and '%s' and own_set_cate='%s' and month_sale_num>0" % (
+                      platform, city, up_time, to_time, down_lat1, up_lat1, down_lng1, up_lng1, cate_name)
 
-        sql2 = "SELECT month_sale_num,latitude,longitude,update_time  from t_map_client_%s_%s_mark where update_time BETWEEN %s and %s and own_first_cate not in ('商店超市','果蔬生鲜','鲜花绿植','医药健康') and latitude BETWEEN '%s' and  " \
-               "'%s' and longitude BETWEEN '%s' and '%s' and own_set_cate='%s' and month_sale_num>0" % (
-                   platform, city, up_time, to_time, down_lat2, up_lat2, down_lng2, up_lng2, cate_name)
+            sql2 = "SELECT month_sale_num,latitude,longitude,update_time  from t_map_client_%s_%s_mark where update_time BETWEEN %s and %s and own_first_cate not in ('商店超市','果蔬生鲜','鲜花绿植','医药健康') and latitude BETWEEN '%s' and  " \
+                   "'%s' and longitude BETWEEN '%s' and '%s' and own_set_cate='%s' and month_sale_num>0" % (
+                       platform, city, up_time, to_time, down_lat2, up_lat2, down_lng2, up_lng2, cate_name)
 
         cur_mapmarker.execute(sql)
         results = cur_mapmarker.fetchall()
@@ -2520,29 +2666,158 @@ def get_two_shop_compare():
         results2 = cur_mapmarker.fetchall()
         second_list = get_two_date(results2, lat2, lng2)
 
+        # 查询小区
+        sql_house = "SELECT longitude,latitude from t_map_lianjia_uptown where longitude !='不明' and city='%s' " % city_name
+        cur_mapmarker.execute(sql_house)
+        results_house = cur_mapmarker.fetchall()
+        first_house = get_two_data_buildings(results_house, lat1, lng1)
+        second_house = get_two_data_buildings(results_house, lat2, lng2)
+        # 查询写字楼
+        sql_office = "SELECT longitude,latitude from t_map_office_building where longitude !='不明' and b_city='%s' " % city_name
+        cur_mapmarker.execute(sql_office)
+        results_office = cur_mapmarker.fetchall()
+        first_office = get_two_data_buildings(results_office, lat1, lng1)
+        second_office = get_two_data_buildings(results_office, lat2, lng2)
+        # 查询医院个数
+        sql_hospital = "SELECT hospital_lng,hospital_lat,hospital_name from t_map_hospital_info WHERE hospital_lat !='不明' "
+        cur_mapmarker.execute(sql_hospital)
+        results_hospital = cur_mapmarker.fetchall()
+        first_hospital = get_two_data_buildings(results_hospital, lat1, lng1)
+        second_hospital = get_two_data_buildings(results_hospital, lat2, lng2)
+        # 查询学校
+        sql_school = "SELECT school_lng,school_lat,school_name from t_map_school_info WHERE school_city='%s' and  school_lng !='不明'" % city_name
+        cur_mapmarker.execute(sql_school)
+        results_school = cur_mapmarker.fetchall()
+        first_school = get_two_data_buildings(results_school, lat1, lng1)
+        second_school = get_two_data_buildings(results_school, lat2, lng2)
+
+        # 查询商场
+        city_name2 = city_name[0:2]
+        sql_shopping = "SELECT buildings_longitude,buildings_latitude,total_type,buildings_name from t_map_buildings where city_name='%s' and total_type='商场'" % city_name2
+        cur_mapmarker.execute(sql_shopping)
+        results_shopping = cur_mapmarker.fetchall()
+        first_shopping = get_two_data_buildings(results_shopping, lat1, lng1)
+        second_shopping = get_two_data_buildings(results_shopping, lat2, lng2)
+        # 查询酒店
+        sql_hotal = "SELECT buildings_longitude,buildings_latitude,total_type,buildings_name from t_map_buildings where city_name='%s' and total_type='酒店'" % city_name2
+        cur_mapmarker.execute(sql_hotal)
+        results_hotal = cur_mapmarker.fetchall()
+        first_hotal = get_two_data_buildings(results_hotal, lat1, lng1)
+        second_hotal = get_two_data_buildings(results_hotal, lat2, lng2)
+
         if platform == 'mt':
-            sql3 = "SELECT month_sale_num,latitude,longitude,update_time,average_price  from t_map_client_%s_%s_mark where update_time BETWEEN %s and %s and own_first_cate not in ('商店超市','果蔬生鲜','鲜花绿植','医药健康') and latitude BETWEEN '%s' and  " \
-                   "'%s' and longitude BETWEEN '%s' and '%s' and own_set_cate='%s' and month_sale_num>0 and average_price is not null" % (
-                       platform, city, up_time, to_time, down_lat1, up_lat1, down_lng1, up_lng1, cate_name)
+            if cate_name != '':
+                sql3 = "SELECT month_sale_num,latitude,longitude,update_time,average_price  from t_map_client_%s_%s_mark where update_time BETWEEN %s and %s and own_first_cate not in ('商店超市','果蔬生鲜','鲜花绿植','医药健康') and latitude BETWEEN '%s' and  " \
+                       "'%s' and longitude BETWEEN '%s' and '%s' and own_set_cate='%s' and month_sale_num>0 and average_price is not null" % (
+                           platform, city, up_time, to_time, down_lat1, up_lat1, down_lng1, up_lng1, cate_name)
+
+                sql4 = "SELECT month_sale_num,latitude,longitude,update_time,average_price  from t_map_client_%s_%s_mark where update_time BETWEEN %s and %s and own_first_cate not in ('商店超市','果蔬生鲜','鲜花绿植','医药健康') and latitude BETWEEN '%s' and  " \
+                       "'%s' and longitude BETWEEN '%s' and '%s' and own_set_cate='%s' and month_sale_num>0 and average_price is not null" % (
+                           platform, city, up_time, to_time, down_lat2, up_lat2, down_lng2, up_lng2, cate_name)
+            else:
+                sql3 = "SELECT month_sale_num,latitude,longitude,update_time,average_price  from t_map_client_%s_%s_mark where update_time BETWEEN %s and %s and own_first_cate not in ('商店超市','果蔬生鲜','鲜花绿植','医药健康') and latitude BETWEEN '%s' and  " \
+                       "'%s' and longitude BETWEEN '%s' and '%s'  and month_sale_num>0 and average_price is not null" % (
+                           platform, city, up_time, to_time, down_lat1, up_lat1, down_lng1, up_lng1)
+
+                sql4 = "SELECT month_sale_num,latitude,longitude,update_time,average_price  from t_map_client_%s_%s_mark where update_time BETWEEN %s and %s and own_first_cate not in ('商店超市','果蔬生鲜','鲜花绿植','医药健康') and latitude BETWEEN '%s' and  " \
+                       "'%s' and longitude BETWEEN '%s' and '%s'  and month_sale_num>0 and average_price is not null" % (
+                           platform, city, up_time, to_time, down_lat2, up_lat2, down_lng2, up_lng2)
+
             cur_mapmarker.execute(sql3)
             results3 = cur_mapmarker.fetchall()
             first_ave_list = get_two_ave(results3, lat1, lng1)
 
-            sql4 = "SELECT month_sale_num,latitude,longitude,update_time,average_price  from t_map_client_%s_%s_mark where update_time BETWEEN %s and %s and own_first_cate not in ('商店超市','果蔬生鲜','鲜花绿植','医药健康') and latitude BETWEEN '%s' and  " \
-                   "'%s' and longitude BETWEEN '%s' and '%s' and own_set_cate='%s' and month_sale_num>0 and average_price is not null" % (
-                       platform, city, up_time, to_time, down_lat2, up_lat2, down_lng2, up_lng2, cate_name)
             cur_mapmarker.execute(sql4)
             results4 = cur_mapmarker.fetchall()
             second_ave_list = get_two_ave(results4, lat2, lng2)
             first_list[0]['income_ave'] = first_ave_list[0]
+            first_list[0]['house_count'] = first_house[0]
+            first_list[0]['office_count'] = first_office[0]
+            first_list[0]['hospital_count'] = first_hospital[0]
+            first_list[0]['school_count'] = first_school[0]
+            first_list[0]['shopping_count'] = first_shopping[0]
+            first_list[0]['hotal_count'] = first_hotal[0]
             first_list[1]['income_ave'] = first_ave_list[1]
+            first_list[1]['house_count'] = first_house[1]
+            first_list[1]['office_count'] = first_office[1]
+            first_list[1]['hospital_count'] = first_hospital[1]
+            first_list[1]['school_count'] = first_school[1]
+            first_list[1]['shopping_count'] = first_shopping[1]
+            first_list[1]['hotal_count'] = first_hotal[1]
             first_list[2]['income_ave'] = first_ave_list[2]
+            first_list[2]['house_count'] = first_house[2]
+            first_list[2]['office_count'] = first_office[2]
+            first_list[2]['hospital_count'] = first_hospital[2]
+            first_list[2]['school_count'] = first_school[2]
+            first_list[2]['shopping_count'] = first_shopping[2]
+            first_list[2]['hotal_count'] = first_hotal[2]
 
             second_list[0]['income_ave'] = second_ave_list[0]
+            second_list[0]['house_count'] = second_house[0]
+            second_list[0]['office_count'] = second_office[0]
+            second_list[0]['hospital_count'] = second_hospital[0]
+            second_list[0]['school_count'] = second_school[0]
+            second_list[0]['shopping_count'] = second_shopping[0]
+            second_list[0]['hotal_count'] = second_hotal[0]
             second_list[1]['income_ave'] = second_ave_list[1]
+            second_list[1]['house_count'] = second_house[1]
+            second_list[1]['office_count'] = second_office[1]
+            second_list[1]['hospital_count'] = second_hospital[1]
+            second_list[1]['school_count'] = second_school[1]
+            second_list[1]['shopping_count'] = second_shopping[1]
+            second_list[1]['hotal_count'] = second_hotal[1]
             second_list[2]['income_ave'] = second_ave_list[2]
+            second_list[2]['house_count'] = second_house[2]
+            second_list[2]['office_count'] = second_office[2]
+            second_list[2]['hospital_count'] = second_hospital[2]
+            second_list[2]['school_count'] = second_school[2]
+            second_list[2]['shopping_count'] = second_shopping[2]
+            second_list[2]['hotal_count'] = second_hotal[2]
+        else:
+            first_list[0]['house_count'] = first_house[0]
+            first_list[0]['office_count'] = first_office[0]
+            first_list[0]['hospital_count'] = first_hospital[0]
+            first_list[0]['school_count'] = first_school[0]
+            first_list[0]['shopping_count'] = first_shopping[0]
+            first_list[0]['hotal_count'] = first_hotal[0]
+
+            first_list[1]['house_count'] = first_house[1]
+            first_list[1]['office_count'] = first_office[1]
+            first_list[1]['hospital_count'] = first_hospital[1]
+            first_list[1]['school_count'] = first_school[1]
+            first_list[1]['shopping_count'] = first_shopping[1]
+            first_list[1]['hotal_count'] = first_hotal[1]
+
+            first_list[2]['house_count'] = first_house[2]
+            first_list[2]['office_count'] = first_office[2]
+            first_list[2]['hospital_count'] = first_hospital[2]
+            first_list[2]['school_count'] = first_school[2]
+            first_list[2]['shopping_count'] = first_shopping[2]
+            first_list[2]['hotal_count'] = first_hotal[2]
+
+            second_list[0]['house_count'] = second_house[0]
+            second_list[0]['office_count'] = second_office[0]
+            second_list[0]['hospital_count'] = second_hospital[0]
+            second_list[0]['school_count'] = second_school[0]
+            second_list[0]['shopping_count'] = second_shopping[0]
+            second_list[0]['hotal_count'] = second_hotal[0]
+
+            second_list[1]['house_count'] = second_house[1]
+            second_list[1]['office_count'] = second_office[1]
+            second_list[1]['hospital_count'] = second_hospital[1]
+            second_list[1]['school_count'] = second_school[1]
+            second_list[1]['shopping_count'] = second_shopping[1]
+            second_list[1]['hotal_count'] = second_hotal[1]
+
+            second_list[2]['house_count'] = second_house[2]
+            second_list[2]['office_count'] = second_office[2]
+            second_list[2]['hospital_count'] = second_hospital[2]
+            second_list[2]['school_count'] = second_school[2]
+            second_list[2]['shopping_count'] = second_shopping[2]
+            second_list[2]['hotal_count'] = second_hotal[2]
 
         json_dict = {}
+
         json_dict['first_list'] = first_list
         json_dict['second_list'] = second_list
         jsondatar = json.dumps(json_dict, ensure_ascii=False)
