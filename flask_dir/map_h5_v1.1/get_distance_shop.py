@@ -5,6 +5,7 @@ from DBUtils.PooledDB import PooledDB
 
 EARTH_REDIUS = 6378.137
 
+
 # 计算两个经纬度之间的距离
 def rad(d):
     return d * math.pi / 180.0
@@ -21,14 +22,15 @@ def getDistance(lat1, lng1, lat2, lng2):
     return s
 
 
-city_list=['北京']
-update_time=8
-update_time2='2019-05-01'
+city_list = ['北京']
+update_time = 8
+update_time2 = '2019-05-01'
 
 pool_mapmarkeronline = PooledDB(pymysql, 5, host='bj-cdb-cwu7v42u.sql.tencentcdb.com', user='root', passwd='xmxc1234',
                                 db='mapmarkeronline', port=62864)
 
-pool_project = PooledDB(pymysql, 5, host='rm-hp364ebpsp6649ra0bo.mysql.huhehaote.rds.aliyuncs.com', user='tanglei', passwd='tanglei', db='commerce',
+pool_project = PooledDB(pymysql, 5, host='rm-hp364ebpsp6649ra0bo.mysql.huhehaote.rds.aliyuncs.com', user='tanglei',
+                        passwd='tanglei', db='commerce',
                         port=3306)
 for city in city_list:
     if city == '北京':
@@ -45,16 +47,17 @@ for city in city_list:
     cur.execute(sql)
     results = cur.fetchall()
 
-    db2=pool_mapmarkeronline.connection()
+    db2 = pool_mapmarkeronline.connection()
 
-    sql2="select shop_id,client_name,month_sale_num,latitude,longitude,address,0,own_set_cate from t_map_client_elm_%s_mark where  own_first_cate not in ('商店超市','果蔬生鲜','鲜花绿植','医药健康') and update_count=%s and month_sale_num!=0" %(city_name,update_time)
+    sql2 = "select shop_id,client_name,month_sale_num,latitude,longitude,address,0,own_set_cate from t_map_client_elm_%s_mark where  own_first_cate not in ('商店超市','果蔬生鲜','鲜花绿植','医药健康') and update_count=%s and month_sale_num!=0" % (
+    city_name, update_time)
     cur2 = db2.cursor()
     cur2.execute(sql2)
-    results2=cur2.fetchall()
+    results2 = cur2.fetchall()
 
     sql_inset = "INSERT  into t_map_h5_shop  (project_id,cate_name,shop_id,client_name,month_sale_num,ave_price,platform,distance,latitude,longitude,address,city,update_time) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) "
     cur3 = db2.cursor()
-    index=1
+    index = 1
 
     list1 = [[1548233987175462, '国贸', '116.447587', '39.906753'],
              [1548233985397507, '上地', '116.311730', '40.028740'],
@@ -68,20 +71,22 @@ for city in city_list:
         project_name = row[1]
         project_latitude = float(row[3])
         project_longitude = float(row[2])
-        print('计算了%s个门店了！！' %index)
-        index+=1
+        print('计算了%s个门店了！！' % index)
+        index += 1
         for row2 in results2:
-            shop_id=row2[0]
-            client_name=row2[1]
-            month_sale_num=row2[2]
-            latitude=row2[3]
-            longitude=row2[4]
-            address=row2[5]
-            average_price=str(row2[6])
-            own_set_cate=row2[7]
-            distance=getDistance(project_latitude,project_longitude,float(latitude),float(longitude))
-            if distance<=3:
-                values=(project_id,own_set_cate,shop_id,client_name,month_sale_num,average_price,'good_elm',distance,latitude,longitude,address,city,update_time2)
+            shop_id = row2[0]
+            client_name = row2[1]
+            month_sale_num = row2[2]
+            latitude = row2[3]
+            longitude = row2[4]
+            address = row2[5]
+            average_price = str(row2[6])
+            own_set_cate = row2[7]
+            distance = getDistance(project_latitude, project_longitude, float(latitude), float(longitude))
+            if distance <= 3:
+                values = (
+                project_id, own_set_cate, shop_id, client_name, month_sale_num, average_price, 'good_elm', distance,
+                latitude, longitude, address, city, update_time2)
                 cur3.execute(sql_inset, values)
         db2.commit()
     cur3.close()

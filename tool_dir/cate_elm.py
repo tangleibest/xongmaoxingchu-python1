@@ -5,7 +5,8 @@ from DBUtils.PooledDB import PooledDB
 匹配饿了么、美团的own_set_Cate品类
 """
 
-cate_dir_elm={'三明治':'意面披萨',
+cate_dir_elm={
+'三明治':'意面披萨',
 '东北菜':'地方菜系',
 '中亚/中东菜':'东南亚菜',
 '中西糕点':'甜品饮品',
@@ -202,7 +203,9 @@ cate_dir_elm={'三明治':'意面披萨',
 '香锅':'香锅干锅',
 '黄焖鸡米饭':'快餐便当',
 '':'其他品类',
-'未知品类':'其他品类'
+'未知品类':'其他品类',
+'盐帮菜':'地方菜系'
+
 }
 
 cate_dir_mt={"0元起送":"其他品类",
@@ -278,8 +281,8 @@ cate_dir_mt={"0元起送":"其他品类",
 "龙虾烧烤":"龙虾烧烤"
 }
 
-city=['beijing','shanghai','hangzhou','shenzhen']
-platform='mt'
+city=['beijing','shanghai','hangzhou','wuhan']
+platform='elm'
 for i in city:
     pool_mapmarkeronline = PooledDB(pymysql, 5, host='bj-cdb-cwu7v42u.sql.tencentcdb.com', user='root', passwd='xmxc1234',
                                     db='mapmarkeronline', port=62864)
@@ -288,7 +291,7 @@ for i in city:
     cur1 = db.cursor()
 
     # sql = "SELECT second_cate,id from t_map_client_%s_%s_mark where update_count=6" %(platform,i)
-    sql = "SELECT second_cate_name,id from t_map_client_%s_%s_mark where update_count=6" %(platform,i)
+    sql = "SELECT second_cate,id from t_map_client_%s_%s_mark where update_count=14 " %(platform,i)
     sq = []
     cur.execute(sql)
     results = cur.fetchall()
@@ -303,9 +306,9 @@ for i in city:
         for key1, value in dict.items():
             if (value == max(dict.values())):
 
-                res=cate_dir_mt.get(key1)
+                res=cate_dir_elm.get(key1)
                 # print(key1,res)
-                update_sql = "UPD ATE t_map_client_%s_%s_mark set own_set_cate='%s' where id= %d" % (platform,i,res,id)
+                update_sql = "UPDATE t_map_client_%s_%s_mark set own_set_cate='%s' where id= %d" % (platform,i,res,id)
                 # print(update_sql)
                 cur1.execute(update_sql)
     db.commit()
