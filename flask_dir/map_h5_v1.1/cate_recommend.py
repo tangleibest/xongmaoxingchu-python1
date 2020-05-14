@@ -168,19 +168,28 @@ def group_by(key_list, value_list):
     return res
 
 
-city_list = ['深圳']
+city_list = ['杭州']
 
-time = [[11, 13, '2020-01-01']]
+time = [[12, 14, '2020-03-01']]
 # time=[[7,10,'2019-08-01'],[6,9,'2019-07-01'],[8,11,'2019-09-01']]
 # time=[[8,10,'2019-08-01'],[9,11,'2019-09-01'],[10,12,'2019-10-01'],[11,13,'2019-11-01']]
 pool_mapmarkeronline = PooledDB(pymysql, 5, host='bj-cdb-cwu7v42u.sql.tencentcdb.com', user='root', passwd='xmxc1234',
                                 db='mapmarkeronline', port=62864)
+
+pool_mapmarktest = PooledDB(pymysql, 5, host='bj-cdb-cwu7v42u.sql.tencentcdb.com', user='root', passwd='xmxc1234',
+                            db='mapmarktest', port=62864)
 
 # pool_test = PooledDB(pymysql, 5, host='bj-cdb-cwu7v42u.sql.tencentcdb.com', user='root', passwd='xmxc1234',
 #                                 db='test', port=62864)
 pool_project = PooledDB(pymysql, 5, host='rm-hp364ebpsp6649ra0bo.mysql.huhehaote.rds.aliyuncs.com', user='tanglei',
                         passwd='tanglei', db='commerce',
                         port=3306)
+db = pool_project.connection()
+db2 = pool_mapmarkeronline.connection()
+db3 = pool_mapmarktest.connection()
+cur = db.cursor()
+cur2 = db2.cursor()
+cur3 = db3.cursor()
 for ti in time:
     for city in city_list:
         if city == '北京':
@@ -191,10 +200,9 @@ for ti in time:
             city_name = 'hangzhou'
         elif city == '深圳':
             city_name = 'shenzhen'
-        db = pool_project.connection()
-        db2 = pool_mapmarkeronline.connection()
+
         # db3 = pool_test.connection()
-        cur = db.cursor()
+
         sql = "SELECT a.project_id,a.project_name,b.address,b.latitude,b.longitude from project a LEFT JOIN development.project_base_info b on a.project_id=b.tid WHERE a.project_id !=1577157249977472 and  a.area_name='%s'" % city
         cur.execute(sql)
         results = cur.fetchall()
@@ -228,9 +236,13 @@ for ti in time:
                         }
             project_id = row[0]
             project_name = row[1]
-            project_list = xm_project_info.get(project_name)
-            project_latitude = float(project_list[2].split(',')[1])
-            project_longitude = float(project_list[2].split(',')[0])
+            if project_name in xm_project_info.keys():
+                project_list = xm_project_info.get(project_name)
+                project_latitude = float(project_list[2].split(',')[1])
+                project_longitude = float(project_list[2].split(',')[0])
+            else:
+                project_latitude = float(row[3])
+                project_longitude = float(row[4])
             up_lat = project_latitude + 0.04
             down_lat = project_latitude - 0.04
             up_lng = project_longitude + 0.05
@@ -238,15 +250,16 @@ for ti in time:
             sql_mt = "select month_sale_num,latitude,longitude,own_set_cate from t_map_client_mt_%s_mark where  " \
                      " update_count=%s and month_sale_num!=0  and latitude " \
                      "BETWEEN '%s' and '%s' and longitude BETWEEN '%s' and '%s'" % (
-                     city_name, ti[0], down_lat, up_lat, down_lng, up_lng)
-            cur2 = db2.cursor()
+                         city_name, ti[0], down_lat, up_lat, down_lng, up_lng)
+
             cur2.execute(sql_mt)
             results_mt = cur2.fetchall()
 
             sql_elm = "select month_sale_num,latitude,longitude,own_set_cate from t_map_client_elm_%s_mark where  " \
                       "own_first_cate not in ('商店超市','果蔬生鲜','鲜花绿植','医药健康') and update_count=%s and month_sale_num!=0  and latitude " \
                       "BETWEEN '%s' and '%s' and longitude BETWEEN '%s' and '%s'" % (
-                      city_name, ti[1], down_lat, up_lat, down_lng, up_lng)
+                          city_name, ti[1], down_lat, up_lat, down_lng, up_lng)
+
             cur3 = db2.cursor()
             cur3.execute(sql_elm)
             results_elm = cur3.fetchall()
@@ -347,13 +360,13 @@ for ti in time:
             for key_dict in cate_dir.keys():
                 value_dict = cate_dir.get(key_dict)
                 sql_values = (
-                project_id, key_dict, value_dict[0], value_dict[1], value_dict[2], value_dict[3], value_dict[4],
-                value_dict[5], value_dict[6], value_dict[7], value_dict[8], value_dict[9], value_dict[10],
-                value_dict[11], ti[2], project_name, city)
+                    project_id, key_dict, value_dict[0], value_dict[1], value_dict[2], value_dict[3], value_dict[4],
+                    value_dict[5], value_dict[6], value_dict[7], value_dict[8], value_dict[9], value_dict[10],
+                    value_dict[11], ti[2], project_name, city)
                 cur4 = db2.cursor()
                 cur4.execute(sql_inster, sql_values)
             db2.commit()
-            cur4.close()
 
-        db.close()
-        db2.close()
+db.close()
+db2.close()
+db3.close()

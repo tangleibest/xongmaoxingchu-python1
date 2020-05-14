@@ -11,6 +11,7 @@ pool = PooledDB(pymysql, 5, host='bj-cdb-cwu7v42u.sql.tencentcdb.com', user='roo
 db = pool.connection()
 cur = db.cursor()
 
+
 def get_str(str_name):
     if str_name is None or str_name == "None":
         str_name = ''
@@ -70,7 +71,7 @@ def get_data(page_count):
 
         shop_id = shop.get("id")
         client_name = shop.get("client_name")
-        client_name=get_str(client_name)
+        client_name = get_str(client_name)
         client_code = shop.get("client_code")
         client_code = get_str(client_code)
         address = shop.get("address")
@@ -92,17 +93,22 @@ def get_data(page_count):
         shop_list.append(
             [shop_id, sort_name, brand_name, client_name, client_code, address, map_address, map_lat, map_lng, phone, 0,
              '', 0, city_name])
+
     for inster_row in shop_list:
-        insert_sql = "INSERT IGNORE into t_map_client_wmb_shop VALUES (%s,'%s','%s','%s','%s','%s','%s','%s','%s','%s',%s,'%s',%s,'%s')" % \
+        insert_sql = "INSERT IGNORE into t_map_client_wmb_shop_copy VALUES (%s,'%s','%s','%s','%s','%s','%s','%s','%s','%s',%s,'%s',%s,'%s')" % \
                      (inster_row[0], inster_row[1], inster_row[2], inster_row[3], inster_row[4], inster_row[5],
                       inster_row[6], inster_row[7], inster_row[8], inster_row[9], inster_row[10], inster_row[11],
                       inster_row[12], inster_row[13])
 
         cur.execute(insert_sql)  # 执行sql语句
-        db.commit()  # 提交到数据库执行
+    db.commit()  # 提交到数据库执行
 
 
+delete_sql = "DELETE from t_map_client_wmb_shop_copy"
+
+cur.execute(delete_sql)
+db.commit()
 page_count_get = get_page()
-for page_count in range(1, page_count_get+1):
+for page_count in range(1, page_count_get + 1):
     get_data(page_count)
 db.close()

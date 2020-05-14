@@ -41,7 +41,7 @@ cur_project = db_project.cursor()
 # 查询销量表档口商户
 db_data = pool_data.connection()
 cur_data = db_data.cursor()
-sql_project = "SELECT table2.project_id,table2.project_name,table2.stalls_id,table2.stalls_name,table2.merchant_id, public_sea_pool.`name`,table2.area_name from  (SELECT	table1.*, contract.merchant_id FROM (SELECT	b.project_id,b.project_name,a.stalls_id,a.stalls_name,b.area_name FROM stalls a LEFT JOIN project b ON a.project_id = b.project_id ) table1 LEFT JOIN contract ON table1.stalls_id = contract.stall_id WHERE contract.is_valid = 1 and contract.is_delete=0) table2 LEFT JOIN  public_sea_pool on table2.merchant_id=public_sea_pool.id"
+sql_project = "SELECT table2.project_id,table2.project_name,table2.stalls_id,table2.stalls_name,table2.merchant_id, public_sea_pool.`name`,table2.area_name from  (SELECT	table1.*, contract.merchant_id FROM (SELECT	b.project_id,b.project_name,a.stalls_id,a.stalls_name,b.area_name FROM stalls a LEFT JOIN project b ON a.project_id = b.project_id ) table1 LEFT JOIN contract ON table1.stalls_id = contract.stall_id WHERE contract.is_valid = 1 and contract.is_delete=0) table2 LEFT JOIN  public_sea_pool on table2.merchant_id=public_sea_pool.id ORDER BY  table2.project_name desc "
 
 cur_project.execute(sql_project)
 results_project = cur_project.fetchall()
@@ -61,8 +61,11 @@ dict_info = {}
 for row_project in results_project:
     project_id = row_project[0]
     project_name = row_project[1]
+    if project_name == "望京":
+        project_name = "望京商业中心"
+
     stall_id = row_project[2]
-    stall_name = str(row_project[3]).strip('+').strip('(分割)')
+    stall_name = str(row_project[3]).replace('+', '').strip('(分割)')
     merchant_id = row_project[4]
     merchant_name = row_project[5]
 
@@ -83,7 +86,7 @@ for row_project in results_project:
             if '二店' not in str(row_wmb[0]):
                 if project_name2 in str(row_wmb[0]):
                     # print(project_name, stall_id, row_wmb[0], row_wmb[3])
-                    if str(stall_name) == str(row_wmb[3]).strip('档口').strip('+'):
+                    if str(stall_name) == str(row_wmb[3]).strip('档口').replace('+', ''):
                         wmb_project = row_wmb[0]
                         wmb_shop = row_wmb[1]
                         wmb_stall = row_wmb[3]
@@ -93,17 +96,20 @@ for row_project in results_project:
             if '二店' in str(row_wmb[0]):
                 if project_name2 in str(row_wmb[0]):
                     # print(project_name, stall_id, row_wmb[0], row_wmb[3])
-                    if str(stall_name) == str(row_wmb[3]).strip('档口').strip('+'):
+                    if str(stall_name) == str(row_wmb[3]).strip('档口').replace('+', ''):
                         wmb_project = row_wmb[0]
                         wmb_shop = row_wmb[1]
                         wmb_stall = row_wmb[3]
                         wmb_id = row_wmb[2]
+    if project_name == "望京商业中心":
+        project_name = "望京"
     dict_info[str(wmb_id) + wmb_stall] = [project_id, project_name, merchant_id, merchant_name, stall_id, stall_name,
                                           wmb_project,
                                           wmb_shop,
                                           wmb_stall, wmb_id, row_project[6]]
+
 # 查询外卖邦销售数据
-sql_income = "SELECT tableb.shop_id,tableb.income_amount,tableb.count_sale,tableb.source,tableb.date,tablea.client_code from (SELECT * from ( SELECT sort_name,shop_name,shop_id,substring_index(substring_index(c.client_code,'-' ,d.help_topic_id+1),'-',-1) client_code,city_name from (SELECT a.sort_name,a.shop_name,a.shop_id,a.client_code,a.city_name from t_map_client_wmb_shop a RIGHT JOIN  (SELECT MAX(shop_id) shop_id from t_map_client_wmb_shop where sort_name is not null and client_code is not  null GROUP BY sort_name,client_code) b on a.shop_id=b.shop_id) c join mysql.help_topic d on d.help_topic_id <  (length(c.client_code) - length(replace(c.client_code,'-',''))+1)  ) m) tablea LEFT JOIN (SELECT shop_id,SUM(income_amount) income_amount,COUNT(*) count_sale,source,date from t_map_client_wmb_user_2019_2 where date='%s' and send_status !='error' GROUP BY shop_id,source) tableb on tablea.shop_id=tableb.shop_id where tableb.shop_id is not null" % yesterday
+sql_income = "SELECT tableb.shop_id,tableb.income_amount,tableb.count_sale,tableb.source,tableb.date,tablea.client_code,tablea.shop_name from (SELECT * from ( SELECT sort_name,shop_name,shop_id,substring_index(substring_index(c.client_code,'-' ,d.help_topic_id+1),'-',-1) client_code,city_name from (SELECT a.sort_name,a.shop_name,a.shop_id,a.client_code,a.city_name from t_map_client_wmb_shop a RIGHT JOIN  (SELECT MAX(shop_id) shop_id from t_map_client_wmb_shop where sort_name is not null and client_code is not  null GROUP BY sort_name,client_code) b on a.shop_id=b.shop_id) c join mysql.help_topic d on d.help_topic_id <  (length(c.client_code) - length(replace(c.client_code,'-',''))+1)  ) m) tablea LEFT JOIN (SELECT shop_id,SUM(income_amount) income_amount,COUNT(*) count_sale,source,date from t_map_client_wmb_user_2019_2 where date='%s' and send_status !='error' GROUP BY shop_id,source) tableb on tablea.shop_id=tableb.shop_id where tableb.shop_id is not null" % yesterday
 cur.execute(sql_income)
 results_income = cur.fetchall()
 list_data = {}
@@ -192,8 +198,8 @@ for insert_row in list_data.values():
                  % (list2[0], list2[1], list2[2], list2[3], list2[4], list2[5], list2[6], list2[7], list2[8], list2[9],
                     list2[10], list2[11], list2[12], list2[13], list2[14], list2[15], list2[16])
 
-    cur_data.execute(insert_sql)  # 执行sql语句
-    db_data.commit()  # 提交到数据库执行
+    cur.execute(insert_sql)  # 执行sql语句
+    db.commit()  # 提交到数据库执行
 
 db.close()
 db_project.close()

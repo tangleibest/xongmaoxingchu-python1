@@ -3,6 +3,7 @@ import math
 import pymysql
 from DBUtils.PooledDB import PooledDB
 
+
 EARTH_REDIUS = 6378.137
 
 
@@ -137,7 +138,7 @@ def getDistance(lat1, lng1, lat2, lng2):
 city_list = ['北京', '上海', '杭州']
 
 # time_list=[[10,'2019-10-01'],[9,'2019-09-01'],[8,'2019-08-01'],[7,'2019-07-01']]
-time_list = [[12, '2020-01-01']]
+time_list = [[12, '2020-03-01']]
 pool_mapmarkeronline = PooledDB(pymysql, 5, host='bj-cdb-cwu7v42u.sql.tencentcdb.com', user='root', passwd='xmxc1234',
                                 db='mapmarkeronline', port=62864)
 

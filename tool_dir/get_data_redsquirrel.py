@@ -1,9 +1,10 @@
 # coding:utf-8
 import datetime
 import os
+import time
 
 from DBUtils.PooledDB import PooledDB
-from flask import Flask, request, Blueprint
+from flask import Flask, request, Blueprint, make_response, jsonify
 import pymysql
 import json
 import csv
@@ -161,9 +162,41 @@ pool_commerce = PooledDB(pymysql, 5, host='rm-hp364ebpsp6649ra0bo.mysql.huhehaot
 pool_visualization = PooledDB(pymysql, 5, host='rm-hp364ebpsp6649ra0bo.mysql.huhehaote.rds.aliyuncs.com',
                               user='tanglei',
                               passwd='tanglei', db='data_visualization', port=3306)
+pool_mapmarkeronline = PooledDB(pymysql, 5, host='bj-cdb-cwu7v42u.sql.tencentcdb.com', user='root', passwd='xmxc1234',
+                                db='mapmarkeronline',
+                                port=62864)  # 5为连接池里的最少连接数
 
 
-# 返回门店列表
+# 获前几个月第一天
+def getTheMonth(n, strf):
+    date = datetime.datetime.today()
+    month = date.month
+    year = date.year
+    for i in range(n):
+        if month == 1:
+            year -= 1
+            month = 12
+        else:
+            month -= 1
+    return datetime.date(year, month, 1).strftime(strf)
+
+
+# 把格式化转化成时间戳
+def str_to_timestamp(str_time=None, format='%Y-%m-%d'):
+    if str_time:
+        time_tuple = time.strptime(str_time, format)  # 把格式化好的时间转换成元祖
+        result = time.mktime(time_tuple)  # 把时间元祖转换成时间戳
+        return int(result)
+    return int(time.time())
+
+
+# 获取上个月第一天时间戳
+up_time = int(str_to_timestamp(getTheMonth(1, '%Y-%m-%d')))
+# 获取上个月最后一天时间戳
+to_time = int(time.mktime(datetime.date(datetime.date.today().year, datetime.date.today().month, 1).timetuple()))
+
+
+# 返回数据
 @app.route('/get_data')
 def getDate():
     db = pool.connection()
@@ -177,6 +210,7 @@ def getDate():
     first_date = str(first_date).replace('-', '')
     second_date = request.args.get('second_date')
     second_date = str(second_date).replace('-', '')
+    dates = getDatesByTimes(first_date, second_date)
     if dimension is None and first_date is None:
         return '请输入参数'
     elif first_date is None:
@@ -209,6 +243,7 @@ def getDate():
             time_dict[time_row[0]] = time_row[3]
         # 当参数为days时执行sql
         if dimension == 'days':
+            day_count = 30
             # sql="SELECT PROJECT_NAME,CLIENT_NAME,CONCAT(PROJECT_NAME,CLIENT_NAME),STALL_NAME,FIRST_CATEGORY,SECOND_CATEGORY," \
             #     "BREAK_EVEN_AMOUNT/100,SUM(ORDER_AMOUNT),SUM(STREAM) from t_shop_info_archive where IS_DELETE=0 and SUBSTRING_INDEX(STREAM_DATE,' ',1) = '%s'  GROUP BY PROJECT_NAME,CLIENT_NAME,SUBSTRING_INDEX(STREAM_DATE,' ',1)" % first_date
             # 查询实收数据
@@ -220,6 +255,7 @@ def getDate():
                            '门店和商户', '商户等级', '开始营业时间', '日期', '平台']
         # 当参数为week时执行sql
         elif dimension == 'week':
+            day_count = dates.__len__()
             sql = "SELECT c.project_name, c.merchant_name, concat_name, c.stalls_name, d.first_classification_name, d.second_classification_name, c.monthly_rent, c.order_count, c.sale_amount, c.plat_type FROM (  SELECT   q.project_name,   q.stalls_name,   q.merchant_id,   q.merchant_name,   CONCAT(    q.project_name,    q.merchant_name   ) concat_name,   w.order_count,   w.sale_amount,   q.monthly_rent, w.plat_type  FROM   (    SELECT     table2.project_id,     table2.project_name,     table2.stalls_id,     table2.stalls_name,     table2.merchant_id,     public_sea_pool.`name` merchant_name,     table2.area_name,     table2.monthly_rent    FROM     (      SELECT       table1.*, contract.merchant_id      FROM       (        SELECT         b.project_id,   b.project_name,   a.stalls_id,   a.stalls_name,   b.area_name,   a.monthly_rent        FROM         commerce.stalls a        LEFT JOIN commerce.project b ON a.project_id = b.project_id       ) table1      LEFT JOIN commerce.contract ON table1.stalls_id = contract.stall_id      WHERE       contract.is_valid = 1      AND contract.is_delete = 0     ) table2    LEFT JOIN commerce.public_sea_pool ON table2.merchant_id = public_sea_pool.id   ) q  LEFT JOIN (   SELECT    l.project_id,    l.project_name,    l.stall_id,    l.stall_name,    l.merchant_id,    l.merchant_name,    l.channel_type,    sum(l.order_count) order_count,    sum(l.sale_amount) sale_amount, l.plat_type   FROM    (     SELECT      project_id,project_name,stall_id,stall_name,merchant_id,merchant_name,channel_type,SUM(order_count) / COUNT(1) order_count,SUM(sale_amount) / COUNT(1) sale_amount, plat_type,stream_date     FROM      merchant_sales_statistics     WHERE      stream_date BETWEEN '%s' and '%s'     AND is_delete = 0     GROUP BY      project_id,merchant_id,channel_type,stream_date    ) l   GROUP BY    l.project_id,    l.merchant_id  ) w ON q.project_id = w.project_id  AND q.stalls_id = w.stall_id ) c LEFT JOIN commerce.public_sea_pool d ON c.merchant_id = d.id;" % (
                 first_date, second_date)
             file_name = first_date + '-' + second_date
@@ -228,7 +264,8 @@ def getDate():
         cur2.execute(sql)
         results = cur2.fetchall()
         # 写入csv文件
-        with open('/home/www/python/get_excel/excel_dir/%s.csv' % file_name, 'w', newline='', encoding='utf-8') as csvfile:
+        with open('/home/www/python/get_excel/excel_dir/%s.csv' % file_name, 'w', newline='',
+                  encoding='utf-8') as csvfile:
             writer = csv.writer(csvfile)
             writer.writerow(format_list)
             for row in results:
@@ -259,7 +296,10 @@ def getDate():
                 if stream == 0:
                     healthy_num = 0
                 else:
-                    healthy_num = 1 - cost / stream
+                    if dimension == 'days':
+                        healthy_num = 1 - cost / 30 / stream
+                    else:
+                        healthy_num = 1 - (cost / 30) / (stream / day_count)
                 if healthy_num >= 0.45:
                     healthy = "好"
                 elif healthy_num < 0.35:
@@ -299,6 +339,7 @@ def getControl():
     first_date = request.args.get('first_date')
     second_date = request.args.get('second_date')
     city_id = request.args.get('city_id')
+    project_id = request.args.get('project_id')
     date_list = getDatesByTimes(first_date, second_date)
     file_name = first_date + second_date
     dict_stalls = {}
@@ -317,12 +358,22 @@ def getControl():
             return '请输入参数'
         else:
             # 查询该日的营业数据
-            sql_project = "SELECT table2.project_id,table2.project_name,table2.stalls_id,table2.stalls_name,table2.merchant_id, " \
-                          "public_sea_pool.`name`,table2.area_name from  (SELECT	table1.*, contract.merchant_id FROM (SELECT	" \
-                          "b.project_id,b.project_name,a.stalls_id,a.stalls_name,b.area_name FROM stalls a LEFT JOIN project b ON " \
-                          "a.project_id = b.project_id ) table1 LEFT JOIN contract ON table1.stalls_id = contract.stall_id WHERE " \
-                          "contract.is_valid = 1 and contract.is_delete=0) table2 LEFT JOIN  public_sea_pool on table2.merchant_id=" \
-                          "public_sea_pool.id where table2.area_name='%s'" % city_name
+
+            if project_id is not None:
+                sql_project = "SELECT table2.project_id,table2.project_name,table2.stalls_id,table2.stalls_name,table2.merchant_id, " \
+                              "public_sea_pool.`name`,table2.area_name from  (SELECT	table1.*, contract.merchant_id FROM (SELECT	" \
+                              "b.project_id,b.project_name,a.stalls_id,a.stalls_name,b.area_name FROM stalls a LEFT JOIN project b ON " \
+                              "a.project_id = b.project_id ) table1 LEFT JOIN contract ON table1.stalls_id = contract.stall_id WHERE " \
+                              "contract.is_valid = 1 and contract.is_delete=0) table2 LEFT JOIN  public_sea_pool on table2.merchant_id=" \
+                              "public_sea_pool.id where table2.area_name='%s' and table2.project_id=%s" % (
+                                  city_name, project_id)
+            else:
+                sql_project = "SELECT table2.project_id,table2.project_name,table2.stalls_id,table2.stalls_name,table2.merchant_id, " \
+                              "public_sea_pool.`name`,table2.area_name from  (SELECT	table1.*, contract.merchant_id FROM (SELECT	" \
+                              "b.project_id,b.project_name,a.stalls_id,a.stalls_name,b.area_name FROM stalls a LEFT JOIN project b ON " \
+                              "a.project_id = b.project_id ) table1 LEFT JOIN contract ON table1.stalls_id = contract.stall_id WHERE " \
+                              "contract.is_valid = 1 and contract.is_delete=0) table2 LEFT JOIN  public_sea_pool on table2.merchant_id=" \
+                              "public_sea_pool.id where table2.area_name='%s' " % city_name
             cur_commerce.execute(sql_project)
             results_project = cur_commerce.fetchall()
 
@@ -366,9 +417,10 @@ def getControl():
     for row, line in enumerate(sheet_list):
         for col, t in enumerate(line):
             sheet1.write(row, col, t)
+    # book.save('/home/www/python/get_excel/excel_dir/data_control%s.xls' % file_name)
+    # file_path = "/home/www/python/get_excel/excel_dir/data_control%s.xls" % file_name
     book.save('/home/www/python/get_excel/excel_dir/data_control%s.xls' % file_name)
     file_path = "/home/www/python/get_excel/excel_dir/data_control%s.xls" % file_name
-
     filename = os.path.basename(file_path)
 
     response = Response(file_iterator(file_path))
@@ -377,8 +429,115 @@ def getControl():
     return response
 
 
+# 导出饿了么、美团范围数据
+@app.route('/get_platform_data')
+def getPlatformData():
+    db_mapmarkeronline = pool_mapmarkeronline.connection()
+    cur_mapmarkeronline = db_mapmarkeronline.cursor()
+    first_date = request.args.get('platform')
+    city = request.args.get('city')
+    coordinate = request.args.get('coordinate')
+    distance = request.args.get('distance')
+    lat = str(coordinate).split(",")[1]
+    lng = str(coordinate).split(",")[0]
+    if platform == 'mt':
+        sql = "SELECT  ROUND(   6378.138 * 2 * ASIN(    SQRT(     POW(      SIN(       (        latitude * PI() / 180 - " \
+              "%s * PI() / 180       ) / 2      ),      2     ) + COS(latitude * PI() / 180) * COS(%s * PI() / 180) " \
+              "* POW(      SIN(       (        longitude * PI() / 180 - %s * PI() / 180       ) / 2      )," \
+              "      2     )    )   ) * 1000  ) AS distance,month_sale_num,client_name,first_cate_name," \
+              "second_cate_name,address,call_center,promotions,area_id ,average_price from t_map_client_mt_%s_mark where " \
+              " update_time BETWEEN %s and %s HAVING distance<=%s" % (
+                  lat, lat, lng, city, up_time, to_time, distance)
+    else:
+        sql = "SELECT  ROUND(   6378.138 * 2 * ASIN(    SQRT(     POW(      SIN(       (        latitude * PI() / 180 - " \
+              "%s * PI() / 180       ) / 2      ),      2     ) + COS(latitude * PI() / 180) * COS(%s * PI() / 180) " \
+              "* POW(      SIN(       (        longitude * PI() / 180 - %s * PI() / 180       ) / 2      )," \
+              "      2     )    )   ) * 1000  ) AS distance,month_sale_num,client_name,first_cate_name," \
+              "second_cate_name,address,call_center,promotions,area_id ,0 from t_map_client_elm_%s_mark where " \
+              " update_time BETWEEN %s and %s HAVING distance<=%s" % (
+                  lat, lat, lng, city, up_time, to_time, distance)
+    cur_mapmarkeronline.execute(sql)
+    results_house = cur_mapmarkeronline.fetchall()
+
+    # 构造写入excel的列表
+    sheet_list = []
+    sheet_list.append(['据项目距离', '月销量', '商户', '一级品类', '二级品类', '地址', '电话', '优惠活动', '区域','客单价'])
+    for row_value in results_house:
+        sheet_list.append(
+            [row_value[0], row_value[1], row_value[2], row_value[3], row_value[4], row_value[5], row_value[6], row_value[7], row_value[8]])
+    # 写入excel
+    book = xlwt.Workbook(encoding='utf-8')
+    sheet1 = book.add_sheet(u'Sheet1', cell_overwrite_ok=True)
+    for row, line in enumerate(sheet_list):
+        for col, t in enumerate(line):
+            sheet1.write(row, col, t)
+
+    book.save('/home/www/python/get_excel/excel_dir/flatform_data.xls')
+    file_path = "/home/www/python/get_excel/excel_dir/flatform_data.xls"
+    filename = os.path.basename(file_path)
+
+    response = Response(file_iterator(file_path))
+    response.headers['Content-Type'] = 'application/octet-stream'
+    response.headers["Content-Disposition"] = 'attachment;filename="{}"'.format(filename)
+    return response
+
+
+@app.before_request
+def be1():
+    print("before_request")
+    return None
+
+
+@app.after_request
+def af1(res):
+    res.headers['Access-Control-Allow-Origin'] = '*'
+    res.headers['Access-Control-Allow-Methods'] = "POST, GET, OPTIONS, DELETE, PUT"
+    res.headers[
+        'Access-Control-Allow-Headers'] = 'Content-Type, x-requested-with, X-Custom-Header, Authorization, application/json'
+    res.headers['Access-Control-Max-Age'] = '3600'
+    res.headers['Access-Control-Allow-Credentials'] = 'true'
+
+    # response.setHeader("Access-Control-Allow-Origin", "*");
+    # response.setHeader("Access-Control-Allow-Methods",
+    #                    "POST, GET, OPTIONS, DELETE, PUT");
+    # response.setHeader("Access-Control-Max-Age", "3600");
+    # response.setHeader("Access-Control-Allow-Headers",
+    #                    "Content-Type, x-requested-with, X-Custom-Header, Authorization, application/json");
+    # response.setHeader("Access-Control-Allow-Credentials", "true");
+    return res
+
+
+# 查询场地
+@app.route('/get_project')
+def getProject():
+    city_id = request.args.get('city_id')
+
+    db_commerce = pool_commerce.connection()
+    cur_commerce = db_commerce.cursor()
+
+    if city_id == '1':
+        city_name = '北京'
+    elif city_id == '2':
+        city_name = '上海'
+    elif city_id == '3':
+        city_name = '杭州'
+    elif city_id == '4':
+        city_name = '深圳'
+    sql = "SELECT project_id,project_name from project where area_name='%s'" % city_name
+    cur_commerce.execute(sql)
+    results_project = cur_commerce.fetchall()
+    list_project = []
+    for row in results_project:
+        dict_project = {}
+        dict_project['project_id'] = row[0]
+        dict_project['project_name'] = row[1]
+        list_project.append(dict_project)
+    jsondu = json.dumps(list_project, ensure_ascii=False)
+    return jsondu
+
+
 app.register_blueprint(api, url_prefix='/api')
 app.register_blueprint(platform, url_prefix='/platform')
 
 if __name__ == '__main__':
-    app.run(debug=True, host="0.0.0.0", port=5010)
+    app.run(debug=True, host="0.0.0.0", port=5010, ssl_context='adhoc')
