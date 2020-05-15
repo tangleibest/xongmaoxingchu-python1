@@ -1,7 +1,6 @@
 # 计算三角形面积
 import math
 
-
 # def area_triangle(a, b, c):
 #     s_a = (a + b + c) / 2
 #     print("s_a:%s" % s_a)
@@ -90,6 +89,10 @@ import math
 
 
 # 计算三角形面积
+import xlrd
+import xlwt
+
+
 def area_triangle(a, b, c):
     s_a = (a + b + c) / 2
 
@@ -119,6 +122,24 @@ def getDistance(lat1, lng1, lat2, lng2):
     return s * 1000
 
 
+# 百度经纬度转化成高德经纬度
+def bdToGaoDe(lon, lat):
+    """
+    百度坐标转高德坐标
+    :param lon:
+    :param lat:
+    :return:
+    """
+    PI = 3.14159265358979324 * 3000.0 / 180.0
+    x = lon - 0.0065
+    y = lat - 0.006
+    z = math.sqrt(x * x + y * y) - 0.00002 * math.sin(y * PI)
+    theta = math.atan2(y, x) - 0.000003 * math.cos(x * PI)
+    lon = z * math.cos(theta)
+    lat = z * math.sin(theta)
+    return lon, lat
+
+
 ab = getDistance(40.348430822382916, 116.340301, 40.34843022354403, 116.35207148802516)
 bc = getDistance(40.34843022354403, 116.35207148802516, 40.33942456129158, 116.35206992291809)
 cd = getDistance(40.33942456129158, 116.35206992291809, 40.33942516, 116.340301)
@@ -126,7 +147,39 @@ da = getDistance(40.33942516, 116.340301, 40.348430822382916, 116.340301)
 ac = getDistance(40.348430822382916, 116.340301, 40.33942456129158, 116.35206992291809)
 bd = getDistance(40.34843022354403, 116.3520714880251, 40.33942516, 116.340301)
 
-area_a=area_triangle(ab,bc,ac)
-area_b=area_triangle(da,cd,ac)
-print(ab,bc,cd,da,ac,bd,area_a,area_b)
-print(area_a+area_b)
+area_a = area_triangle(ab, bc, ac)
+area_b = area_triangle(da, cd, ac)
+print(ab, bc, cd, da, ac, bd, area_a, area_b)
+print(area_a + area_b)
+print(bdToGaoDe(116.35207148802516, 40.34843022354403)[1])
+
+book = xlwt.Workbook(encoding='utf-8')
+sheet1 = book.add_sheet(u'Sheet1', cell_overwrite_ok=True)
+data = xlrd.open_workbook(r"C:\Users\tl\Desktop\excel\网规扎点图钉钉5.14.xlsx")
+table = data.sheets()[0]
+sheet_list = []
+for table_index in range(3, 92):
+    row = table.row_values(table_index)
+    id = row[0]
+    business_area_name = row[1]
+    left_up_name = row[2]
+    left_up_lng = bdToGaoDe(float(row[3]), float(row[4]))[0]
+    left_up_lat = bdToGaoDe(float(row[3]), float(row[4]))[1]
+    right_up_name = row[5]
+    right_up_lng = bdToGaoDe(float(row[6]), float(row[7]))[0]
+    right_up_lat = bdToGaoDe(float(row[6]), float(row[7]))[1]
+    right_lower_name = row[8]
+    right_lower_lng = bdToGaoDe(float(row[9]), float(row[10]))[0]
+    right_lower_lat = bdToGaoDe(float(row[9]), float(row[10]))[1]
+    left_lower_name = row[11]
+    left_lower_lng = bdToGaoDe(float(row[12]), float(row[13]))[0]
+    left_lower_lat = bdToGaoDe(float(row[12]), float(row[13]))[1]
+    sheet_list.append(['[', left_up_lng, ',', left_up_lat, '],[', right_up_lng, ',', right_up_lat, '],[',
+                       right_lower_lng, ',', right_lower_lat, '],[',
+                       left_lower_lng, ',', left_lower_lat, ']'])
+
+for row, line in enumerate(sheet_list):
+    for col, t in enumerate(line):
+        sheet1.write(row, col, t)
+
+book.save('lat_gaode.xlsx')
