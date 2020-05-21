@@ -55,7 +55,7 @@ def get_page(shop_id, date):
 
     res = json.loads(res)
     code = res.get("code")
-    page_count_get = 0
+    page_count_get=0
     if code == 0:
         pager = res.get("pager")
         page_count_get = pager.get("pageCount")
@@ -128,34 +128,28 @@ def get_data(page_count, shop_id, date):
         send_arrived_at = shop.get("send_arrived_at")
         products_list = shop.get("products")
         products_inster = []
-        for products in products_list:
-            products_id = products.get("id")
-            order_id = products.get("order_id")
-            product_id = products.get("product_id")
-            product_extend_id = products.get("product_extend_id")
-            origin_price = products.get("origin_price")
-            buy_price = products.get("buy_price")
-            buy_num = products.get("buy_num")
-            is_product = products.get("is_product")
-            product_name = products.get("product_name")
-            spec = products.get("spec")
-            spec = get_str(spec)
-            code = products.get("code")
-            products_inster.append(
-                [client_id, order_id, products_id, product_name, buy_num, buy_price, spec, date, origin_price,
-                 is_product])
-
-        for row_ins in products_inster:
-            try:
-                sql2 = "INSERT IGNORE into t_map_client_wmb_products_2020_5_22 VALUES (%s,%s, %s,\"%s\",%s,%s,\"%s\",\"%s\",%s,\"%s\")" % (
-                    row_ins[0], row_ins[1], row_ins[2], row_ins[3], row_ins[4], row_ins[5],
-                    row_ins[6], row_ins[7], row_ins[8], row_ins[9])
-
-                cur.execute(sql2)  # 执行sql语句
-                db.commit()  # 提交到数据库执行
-            except:
-                print('异常')
-
+        # for products in products_list:
+        #     products_id = products.get("id")
+        #     order_id = products.get("order_id")
+        #     product_id = products.get("product_id")
+        #     product_extend_id = products.get("product_extend_id")
+        #     origin_price = products.get("origin_price")
+        #     buy_price = products.get("buy_price")
+        #     buy_num = products.get("buy_num")
+        #     is_product = products.get("is_product")
+        #     product_name = products.get("product_name")
+        #     spec = products.get("spec")
+        #     spec = get_str(spec)
+        #     code = products.get("code")
+            # products_inster.append(
+            #     [client_id, order_id, products_id, product_name, buy_num, buy_price, spec, date, origin_price,
+            #      is_product])
+        # for row_ins in products_inster:
+        #     sql2 = "INSERT IGNORE into t_map_client_wmb_products_2019_2 VALUES (%s,%s, %s,\"%s\",%s,%s,\"%s\",\"%s\",%s,\"%s\")" % (
+        #         row_ins[0], row_ins[1], row_ins[2], row_ins[3], row_ins[4], row_ins[5],
+        #         row_ins[6], row_ins[7], row_ins[8], row_ins[9])
+        #     cur.execute(sql2)  # 执行sql语句
+        #     db.commit()  # 提交到数据库执行
         order_list.append(
             [client_id, data_id, buyer_name, buyer_phone, buyer_address, buyer_lat, buyer_lng, required, income_amount,
              source, buyer_distance, date, send_status, pay_type, pay_status, service_type, plat_num, order_no,
@@ -163,28 +157,23 @@ def get_data(page_count, shop_id, date):
              send_amount, order_amount, subsidy_amount, discount_amount, service_amount, red_amount, is_print,
              send_appointed_at, send_started_at, send_arrived_at, status])
     for inster_row in order_list:
-        try:
-            insert_sql = "INSERT IGNORE into t_map_client_wmb_user_2020_5_22 VALUES (%s,%s," \
-                         "\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",%s,\"%s\",%s,\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",\"%s\"," \
-                         "%s,\"%s\",\"%s\",\"%s\",\"%s\",%s,%s, %s,%s,%s,%s,%s,%s,%s,%s,\"%s\",\"%s\",\"%s\",\"%s\",\"%s\")" % \
-                         (inster_row[0], inster_row[1], inster_row[2], inster_row[3], inster_row[4], inster_row[5],
-                          inster_row[6], inster_row[7], inster_row[8], inster_row[9], inster_row[10], inster_row[11],
-                          inster_row[12], inster_row[13], inster_row[14], inster_row[15], inster_row[16],
-                          inster_row[17],
-                          inster_row[18],
-                          inster_row[19], inster_row[20], inster_row[21], inster_row[22], inster_row[23],
-                          inster_row[24],
-                          inster_row[25], inster_row[26], inster_row[27], inster_row[28], inster_row[29],
-                          inster_row[30],
-                          inster_row[31],
-                          inster_row[32], inster_row[33], inster_row[34], inster_row[35], inster_row[36])
-            cur.execute(insert_sql)
-            db.commit()
-        except:
-            print('异常')
+        insert_sql = "INSERT IGNORE into t_map_client_wmb_user_2019_2 VALUES (%s,%s," \
+                     "\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",%s,\"%s\",%s,\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",\"%s\"," \
+                     "%s,\"%s\",\"%s\",\"%s\",\"%s\",%s,%s, %s,%s,%s,%s,%s,%s,%s,%s,\"%s\",\"%s\",\"%s\",\"%s\",\"%s\")" % \
+                     (inster_row[0], inster_row[1], inster_row[2], inster_row[3], inster_row[4], inster_row[5],
+                      inster_row[6], inster_row[7], inster_row[8], inster_row[9], inster_row[10], inster_row[11],
+                      inster_row[12], inster_row[13], inster_row[14], inster_row[15], inster_row[16], inster_row[17],
+                      inster_row[18],
+                      inster_row[19], inster_row[20], inster_row[21], inster_row[22], inster_row[23], inster_row[24],
+                      inster_row[25], inster_row[26], inster_row[27], inster_row[28], inster_row[29], inster_row[30],
+                      inster_row[31],
+                      inster_row[32], inster_row[33], inster_row[34], inster_row[35], inster_row[36])
+
+        cur.execute(insert_sql)  # 执行sql语句
+        db.commit()  # 提交到数据库执行
 
 
-shop_sql = "SELECT shop_id from t_map_client_wmb_shop"
+shop_sql = "SELECT shop_id from t_map_client_wmb_shop where shop_id in (5053,5054,5058,5059)"
 cur.execute(shop_sql)
 results = cur.fetchall()
 date = str(datetime.date.today() - datetime.timedelta(days=1))
@@ -192,6 +181,7 @@ date = str(datetime.date.today() - datetime.timedelta(days=1))
 for shop_id_list in results:
 
     shop_id = shop_id_list[0]
+    print(shop_id)
 
     page_count_get = get_page(shop_id, date)
     if page_count_get > 0:

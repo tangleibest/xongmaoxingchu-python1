@@ -97,21 +97,21 @@ def IsPtInPoly(aLon, aLat, pointList):
 
 # 写入excel
 
-PLATFORM = 'mt'
-UPDATE_COUNT = [6, 9, 12]
-for i in UPDATE_COUNT:
+TYPE = [['lianjia', ['id', '商圈名称', '小区名称', '地址', '户数', '纬度', '经度', '四边形面积']], ['office'
+    , ['id', '商圈名称', '写字楼名称', '地址', '总建筑面积', '纬度', '经度', '四边形面积']]]
+for i in TYPE:
     pool_mapmarkeronline = PooledDB(pymysql, 5, host='bj-cdb-cwu7v42u.sql.tencentcdb.com', user='root',
                                     passwd='xmxc1234',
                                     db='mapmarkeronline', port=62864)
     db = pool_mapmarkeronline.connection()
     cur = db.cursor()
-    data = xlrd.open_workbook(r"C:\Users\tl\Desktop\excel\网规扎点图-需更新商圈0519.xlsx")
+    data = xlrd.open_workbook(r"C:\Users\tl\Desktop\excel\网规扎点图钉钉0519- 总.xlsx")
     table = data.sheets()[0]
     book = xlwt.Workbook(encoding='utf-8')
     sheet1 = book.add_sheet(u'Sheet1', cell_overwrite_ok=True)
     sheet_list = []
-    sheet_list.append(['id', '商圈名称', '商户', '月销量', '纬度', '经度', '电话', '一级品类', '二级品类', '客单价', '四边形面积'])
-    for table_index in range(3, 14):
+    sheet_list.append(i[1])
+    for table_index in range(3, 92):
         row = table.row_values(table_index)
         id = row[0]
         business_area_name = row[1]
@@ -149,42 +149,36 @@ for i in UPDATE_COUNT:
         print(total_area_AC, total_area_BD, avg_total_area)
         pointList = [(left_up_lng, left_up_lat), (right_up_lng, right_up_lat), (right_lower_lng, right_lower_lat),
                      (left_lower_lng, left_lower_lat)]
-        if PLATFORM == 'mt':
-            # 美团
-            sql = "SELECT client_name,month_sale_num,latitude,longitude,call_center,first_cate_name,second_cate_name,average_price from t_map_client_mt_beijing_mark where " \
-                  "update_count=%s and own_set_cate not in ('其他品类','超市便利')" % i
+        if i[0] == 'lianjia':
+            # 小区
+            sql = "SELECT uptown_name,uptown_address,house_num,latitude,longitude from t_map_lianjia_uptown where city='北京市' and longitude!='不明'"
             print(business_area_name)
 
-        elif PLATFORM == 'elm':
-            # 饿了么
-            sql = "SELECT client_name,month_sale_num,latitude,longitude,call_center,first_cate,second_cate from t_map_client_elm_beijing_mark where update_count=%s and own_set_cate not in ('其他品类','超市便利') " % i
+        elif i[0] == 'office':
+            # 写字楼
+            sql = "SELECT  b_name,b_address,overall_floorage,latitude,longitude FROM t_map_office_building where b_city ='北京市' and longitude!='不明'"
 
             print(business_area_name)
         cur.execute(sql)
         results = cur.fetchall()
 
         for result in results:
-            shop_lat = float(result[2])
-            shop_lng = float(result[3])
+            shop_lat = float(result[3])
+            shop_lng = float(result[4])
 
             is_in = IsPtInPoly(shop_lng, shop_lat, pointList)
             if is_in is True:
-                if PLATFORM == 'mt':
+                if i[0] == 'lianjia':
                     sheet_list.append(
-                        [id, business_area_name, result[0], result[1], result[2], result[3], result[4], result[5],
-                         result[6],
-                         result[7], avg_total_area
-                         ])
-                elif PLATFORM == 'elm':
+                        [id, business_area_name, result[0], result[1], result[2], result[3], result[4], avg_total_area])
+                elif i[0] == 'office':
                     sheet_list.append(
-                        [id, business_area_name, result[0], result[1], result[2], result[3], result[4], result[5],
-                         result[6], avg_total_area
-                         ])
+                        [id, business_area_name, result[0], result[1], result[2], result[3], result[4], avg_total_area])
 
     for row, line in enumerate(sheet_list):
         for col, t in enumerate(line):
             sheet1.write(row, col, t)
 
-    book.save('%s_beijing_poly_%s.xlsx' % (PLATFORM, i))
+    book.save('%s_beijing_poly.xlsx' % (i[0]))
 
     db.close()

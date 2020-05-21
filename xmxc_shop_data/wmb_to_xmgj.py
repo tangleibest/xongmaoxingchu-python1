@@ -63,6 +63,8 @@ for row_project in results_project:
     project_name = row_project[1]
     if project_name == "望京":
         project_name = "望京商业中心"
+    if project_name == "建国门贵友":
+        project_name = "贵友大厦"
 
     stall_id = row_project[2]
     stall_name = str(row_project[3]).replace('+', '').strip('(分割)')
@@ -103,6 +105,8 @@ for row_project in results_project:
                         wmb_id = row_wmb[2]
     if project_name == "望京商业中心":
         project_name = "望京"
+    if project_name == "贵友大厦":
+        project_name = "建国门贵友"
     dict_info[str(wmb_id) + wmb_stall] = [project_id, project_name, merchant_id, merchant_name, stall_id, stall_name,
                                           wmb_project,
                                           wmb_shop,

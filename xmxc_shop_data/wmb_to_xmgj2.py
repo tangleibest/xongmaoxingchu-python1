@@ -74,6 +74,8 @@ for row_project in results_project:
     project_name = row_project[1]
     if project_name == "望京":
         project_name = "望京商业中心"
+    if project_name == "建国门贵友":
+        project_name = "贵友大厦"
 
     stall_id = row_project[2]
     stall_name = str(row_project[3]).strip('+').strip('(分割)')
@@ -114,14 +116,16 @@ for row_project in results_project:
                         wmb_id = row_wmb[2]
     if project_name == "望京商业中心":
         project_name = "望京"
+    if project_name == "贵友大厦":
+        project_name = "建国门贵友"
     dict_info[str(wmb_id) + wmb_stall] = [project_id, project_name, merchant_id, merchant_name, stall_id,
                                           stall_name,
                                           wmb_project,
                                           wmb_shop,
                                           wmb_stall, wmb_id, row_project[6]]
 
-date_list = getDatesByTimes('2020-04-28', '2020-04-28')
-yesterday = (date.today() + timedelta(days=-1)).strftime("%Y-%m-%d")
+date_list = getDatesByTimes('2020-05-10', '2020-05-19')
+yesterday = (date.today() + timedelta(days=-4)).strftime("%Y-%m-%d")
 
 # 查询外卖邦销售数据
 sql_income = "SELECT tableb.shop_id,tableb.income_amount,tableb.count_sale,tableb.source,tableb.date,tablea.client_code,tablea.shop_name from (SELECT * from ( SELECT sort_name,shop_name,shop_id,substring_index(substring_index(c.client_code,'-' ,d.help_topic_id+1),'-',-1) client_code,city_name from (SELECT a.sort_name,a.shop_name,a.shop_id,a.client_code,a.city_name from t_map_client_wmb_shop a RIGHT JOIN  (SELECT MAX(shop_id) shop_id from t_map_client_wmb_shop where sort_name is not null and client_code is not  null GROUP BY sort_name,client_code) b on a.shop_id=b.shop_id) c join mysql.help_topic d on d.help_topic_id <  (length(c.client_code) - length(replace(c.client_code,'-',''))+1)  ) m) tablea LEFT JOIN (SELECT shop_id,SUM(income_amount) income_amount,COUNT(*) count_sale,source,date from t_map_client_wmb_user_2019_2 where date='%s' and send_status !='error' GROUP BY shop_id,source) tableb on tablea.shop_id=tableb.shop_id where tableb.shop_id is not null" % yesterday

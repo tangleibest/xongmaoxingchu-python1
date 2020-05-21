@@ -363,17 +363,17 @@ def getControl():
                 sql_project = "SELECT table2.project_id,table2.project_name,table2.stalls_id,table2.stalls_name,table2.merchant_id, " \
                               "public_sea_pool.`name`,table2.area_name from  (SELECT	table1.*, contract.merchant_id FROM (SELECT	" \
                               "b.project_id,b.project_name,a.stalls_id,a.stalls_name,b.area_name FROM stalls a LEFT JOIN project b ON " \
-                              "a.project_id = b.project_id ) table1 LEFT JOIN contract ON table1.stalls_id = contract.stall_id WHERE " \
+                              "a.project_id = b.project_id and b.is_delete=0 and a.is_delete=0) table1 LEFT JOIN contract ON table1.stalls_id = contract.stall_id WHERE " \
                               "contract.is_valid = 1 and contract.is_delete=0) table2 LEFT JOIN  public_sea_pool on table2.merchant_id=" \
-                              "public_sea_pool.id where table2.area_name='%s' and table2.project_id=%s" % (
+                              "public_sea_pool.id where table2.area_name='%s' and table2.project_id=%s and  public_sea_pool.is_delete=0" % (
                                   city_name, project_id)
             else:
                 sql_project = "SELECT table2.project_id,table2.project_name,table2.stalls_id,table2.stalls_name,table2.merchant_id, " \
                               "public_sea_pool.`name`,table2.area_name from  (SELECT	table1.*, contract.merchant_id FROM (SELECT	" \
                               "b.project_id,b.project_name,a.stalls_id,a.stalls_name,b.area_name FROM stalls a LEFT JOIN project b ON " \
-                              "a.project_id = b.project_id ) table1 LEFT JOIN contract ON table1.stalls_id = contract.stall_id WHERE " \
+                              "a.project_id = b.project_id and b.is_delete=0 and a.is_delete=0) table1 LEFT JOIN contract ON table1.stalls_id = contract.stall_id WHERE " \
                               "contract.is_valid = 1 and contract.is_delete=0) table2 LEFT JOIN  public_sea_pool on table2.merchant_id=" \
-                              "public_sea_pool.id where table2.area_name='%s' " % city_name
+                              "public_sea_pool.id where table2.area_name='%s' and  public_sea_pool.is_delete=0 " % city_name
             cur_commerce.execute(sql_project)
             results_project = cur_commerce.fetchall()
 
