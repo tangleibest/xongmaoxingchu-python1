@@ -324,6 +324,10 @@ def getDate():
         response = Response(file_iterator(file_path))
         response.headers['Content-Type'] = 'application/octet-stream'
         response.headers["Content-Disposition"] = 'attachment;filename="{}"'.format(filename)
+        db.close()
+        db2.close()
+        db_comm.close()
+
         return response
 
 
@@ -426,6 +430,8 @@ def getControl():
     response = Response(file_iterator(file_path))
     response.headers['Content-Type'] = 'application/octet-stream'
     response.headers["Content-Disposition"] = 'attachment;filename="{}"'.format(filename)
+    db_commerce.close()
+    db_visualization.close()
     return response
 
 
@@ -479,6 +485,8 @@ def getPlatformData():
     response = Response(file_iterator(file_path))
     response.headers['Content-Type'] = 'application/octet-stream'
     response.headers["Content-Disposition"] = 'attachment;filename="{}"'.format(filename)
+    db_mapmarkeronline.close()
+
     return response
 
 
@@ -533,6 +541,7 @@ def getProject():
         dict_project['project_name'] = row[1]
         list_project.append(dict_project)
     jsondu = json.dumps(list_project, ensure_ascii=False)
+    db_commerce.close()
     return jsondu
 
 
@@ -540,4 +549,4 @@ app.register_blueprint(api, url_prefix='/api')
 app.register_blueprint(platform, url_prefix='/platform')
 
 if __name__ == '__main__':
-    app.run(debug=True, host="0.0.0.0", port=5010, ssl_context='adhoc')
+    app.run(debug=True, host="0.0.0.0", port=5010)

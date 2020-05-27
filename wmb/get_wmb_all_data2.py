@@ -1,3 +1,4 @@
+# coding:utf-8
 import datetime
 
 import requests
@@ -74,7 +75,6 @@ def get_data(page_count, shop_id, date):
                  "timestamp": timestamp2,
                  "signature": "%s" % page_signature}
     page_res = requests.post(url, json.dumps(page_data)).text
-
     datas = json.loads(page_res).get("datas")
 
     order_list = []
@@ -157,7 +157,7 @@ def get_data(page_count, shop_id, date):
              send_amount, order_amount, subsidy_amount, discount_amount, service_amount, red_amount, is_print,
              send_appointed_at, send_started_at, send_arrived_at, status])
     for inster_row in order_list:
-        insert_sql = "INSERT IGNORE into t_map_client_wmb_user_2019_2 VALUES (%s,%s," \
+        insert_sql = "INSERT IGNORE into t_map_client_wmb_user_2020_5_22 VALUES (%s,%s," \
                      "\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",%s,\"%s\",%s,\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",\"%s\"," \
                      "%s,\"%s\",\"%s\",\"%s\",\"%s\",%s,%s, %s,%s,%s,%s,%s,%s,%s,%s,\"%s\",\"%s\",\"%s\",\"%s\",\"%s\")" % \
                      (inster_row[0], inster_row[1], inster_row[2], inster_row[3], inster_row[4], inster_row[5],
@@ -173,10 +173,11 @@ def get_data(page_count, shop_id, date):
         db.commit()  # 提交到数据库执行
 
 
-shop_sql = "SELECT shop_id from t_map_client_wmb_shop where shop_id in (5053,5054,5058,5059)"
+shop_sql = "SELECT shop_id from t_map_client_wmb_shop where shop_id=5923"
 cur.execute(shop_sql)
 results = cur.fetchall()
-date = str(datetime.date.today() - datetime.timedelta(days=1))
+print(results)
+date = str(datetime.date.today() - datetime.timedelta(days=2))
 
 for shop_id_list in results:
 
@@ -188,5 +189,6 @@ for shop_id_list in results:
         for page_count in range(1, page_count_get + 1):
             get_data(page_count, shop_id, date)
 db.close()
+pool.close()
 end_time = datetime.datetime.today()
 print("新增成功开始时间：%s,结束时间：%s" % (start_time, end_time))

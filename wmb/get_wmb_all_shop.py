@@ -1,3 +1,4 @@
+# coding:utf-8
 import requests
 import time
 import hashlib
@@ -111,4 +112,6 @@ db.commit()
 page_count_get = get_page()
 for page_count in range(1, page_count_get + 1):
     get_data(page_count)
+
 db.close()
+pool.close()
