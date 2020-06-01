@@ -173,11 +173,11 @@ def get_data(page_count, shop_id, date):
         db.commit()  # 提交到数据库执行
 
 
-shop_sql = "SELECT shop_id from t_map_client_wmb_shop where shop_id=5923"
+shop_sql = "SELECT shop_id from t_map_client_wmb_shop "
 cur.execute(shop_sql)
 results = cur.fetchall()
 print(results)
-date = str(datetime.date.today() - datetime.timedelta(days=2))
+date = str(datetime.date.today() - datetime.timedelta(days=1))
 
 for shop_id_list in results:
 
