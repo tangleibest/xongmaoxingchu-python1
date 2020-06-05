@@ -157,20 +157,23 @@ def get_data(page_count, shop_id, date):
              send_amount, order_amount, subsidy_amount, discount_amount, service_amount, red_amount, is_print,
              send_appointed_at, send_started_at, send_arrived_at, status])
     for inster_row in order_list:
-        insert_sql = "INSERT IGNORE into t_map_client_wmb_user_2020_5_22 VALUES (%s,%s," \
-                     "\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",%s,\"%s\",%s,\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",\"%s\"," \
-                     "%s,\"%s\",\"%s\",\"%s\",\"%s\",%s,%s, %s,%s,%s,%s,%s,%s,%s,%s,\"%s\",\"%s\",\"%s\",\"%s\",\"%s\")" % \
-                     (inster_row[0], inster_row[1], inster_row[2], inster_row[3], inster_row[4], inster_row[5],
-                      inster_row[6], inster_row[7], inster_row[8], inster_row[9], inster_row[10], inster_row[11],
-                      inster_row[12], inster_row[13], inster_row[14], inster_row[15], inster_row[16], inster_row[17],
-                      inster_row[18],
-                      inster_row[19], inster_row[20], inster_row[21], inster_row[22], inster_row[23], inster_row[24],
-                      inster_row[25], inster_row[26], inster_row[27], inster_row[28], inster_row[29], inster_row[30],
-                      inster_row[31],
-                      inster_row[32], inster_row[33], inster_row[34], inster_row[35], inster_row[36])
+        try:
+            insert_sql = "INSERT IGNORE into t_map_client_wmb_user_2020_5_22 VALUES (%s,%s," \
+                         "\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",%s,\"%s\",%s,\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",\"%s\"," \
+                         "%s,\"%s\",\"%s\",\"%s\",\"%s\",%s,%s, %s,%s,%s,%s,%s,%s,%s,%s,\"%s\",\"%s\",\"%s\",\"%s\",\"%s\")" % \
+                         (inster_row[0], inster_row[1], inster_row[2], inster_row[3], inster_row[4], inster_row[5],
+                          inster_row[6], inster_row[7], inster_row[8], inster_row[9], inster_row[10], inster_row[11],
+                          inster_row[12], inster_row[13], inster_row[14], inster_row[15], inster_row[16], inster_row[17],
+                          inster_row[18],
+                          inster_row[19], inster_row[20], inster_row[21], inster_row[22], inster_row[23], inster_row[24],
+                          inster_row[25], inster_row[26], inster_row[27], inster_row[28], inster_row[29], inster_row[30],
+                          inster_row[31],
+                          inster_row[32], inster_row[33], inster_row[34], inster_row[35], inster_row[36])
 
-        cur.execute(insert_sql)  # 执行sql语句
-        db.commit()  # 提交到数据库执行
+            cur.execute(insert_sql)  # 执行sql语句
+            db.commit()  # 提交到数据库执行
+        except:
+            print('异常')
 
 
 shop_sql = "SELECT shop_id from t_map_client_wmb_shop "

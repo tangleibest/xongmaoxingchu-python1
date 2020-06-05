@@ -8,7 +8,7 @@ from flask import Flask, request, Blueprint, make_response, jsonify
 import pymysql
 import json
 import csv
-from flask_cors import *
+# from flask_cors import *
 from flask import Response
 import xlwt
 
@@ -16,7 +16,7 @@ import xlwt
 客户成功部每日数据导出
 """
 app = Flask(__name__)
-CORS(app, supports_credentials=True)
+# CORS(app, supports_credentials=True)
 app.config['API_DOC_MEMBER'] = ['api', 'platform']
 
 api = Blueprint('api', __name__)
@@ -421,10 +421,10 @@ def getControl():
     for row, line in enumerate(sheet_list):
         for col, t in enumerate(line):
             sheet1.write(row, col, t)
-    # book.save('/home/www/python/get_excel/excel_dir/data_control%s.xls' % file_name)
-    # file_path = "/home/www/python/get_excel/excel_dir/data_control%s.xls" % file_name
-    book.save('/home/www/python/get_excel/excel_dir/data_control%s.xls' % file_name)
-    file_path = "/home/www/python/get_excel/excel_dir/data_control%s.xls" % file_name
+    # book.save('/home/www/python/get_excel/excel_dir/data_control%s.xlsx' % file_name)
+    # file_path = "/home/www/python/get_excel/excel_dir/data_control%s.xlsx" % file_name
+    book.save('/home/www/python/get_excel/excel_dir/data_control%s.xlsx' % file_name)
+    file_path = "/home/www/python/get_excel/excel_dir/data_control%s.xlsx" % file_name
     filename = os.path.basename(file_path)
 
     response = Response(file_iterator(file_path))
@@ -467,10 +467,11 @@ def getPlatformData():
 
     # 构造写入excel的列表
     sheet_list = []
-    sheet_list.append(['据项目距离', '月销量', '商户', '一级品类', '二级品类', '地址', '电话', '优惠活动', '区域','客单价'])
+    sheet_list.append(['据项目距离', '月销量', '商户', '一级品类', '二级品类', '地址', '电话', '优惠活动', '区域', '客单价'])
     for row_value in results_house:
         sheet_list.append(
-            [row_value[0], row_value[1], row_value[2], row_value[3], row_value[4], row_value[5], row_value[6], row_value[7], row_value[8]])
+            [row_value[0], row_value[1], row_value[2], row_value[3], row_value[4], row_value[5], row_value[6],
+             row_value[7], row_value[8]])
     # 写入excel
     book = xlwt.Workbook(encoding='utf-8')
     sheet1 = book.add_sheet(u'Sheet1', cell_overwrite_ok=True)
@@ -478,8 +479,8 @@ def getPlatformData():
         for col, t in enumerate(line):
             sheet1.write(row, col, t)
 
-    book.save('/home/www/python/get_excel/excel_dir/flatform_data.xls')
-    file_path = "/home/www/python/get_excel/excel_dir/flatform_data.xls"
+    book.save('/home/www/python/get_excel/excel_dir/flatform_data.xlsx')
+    file_path = "/home/www/python/get_excel/excel_dir/flatform_data.xlsx"
     filename = os.path.basename(file_path)
 
     response = Response(file_iterator(file_path))
@@ -492,7 +493,6 @@ def getPlatformData():
 
 @app.before_request
 def be1():
-    print("before_request")
     return None
 
 

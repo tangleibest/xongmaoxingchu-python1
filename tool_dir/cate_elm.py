@@ -292,7 +292,7 @@ for i in city:
     cur1 = db.cursor()
 
     # sql = "SELECT second_cate,id from t_map_client_%s_%s_mark where update_count=6" %(platform,i)
-    sql = "SELECT second_cate,id from t_map_client_%s_%s_mark where update_count=14 " % (platform, i)
+    sql = "SELECT second_cate,id from t_map_client_%s_%s_mark where update_count=15 " % (platform, i)
     sq = []
     cur.execute(sql)
     results = cur.fetchall()
