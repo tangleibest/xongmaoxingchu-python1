@@ -25,7 +25,7 @@ def make_snowflake(timestamp_ms, datacenter_id, worker_id, sequence_id, twepoch=
     return sid
 
 
-yesterday = (date.today() + timedelta(days=-1)).strftime("%Y-%m-%d")
+yesterday = (date.today() + timedelta(days=-2)).strftime("%Y-%m-%d")
 # 数据库连接池
 pool_mapmarkeronline = PooledDB(pymysql, 5, host='bj-cdb-cwu7v42u.sql.tencentcdb.com', user='root', passwd='xmxc1234',
                                 db='mapmarktest', port=62864)
@@ -113,10 +113,27 @@ for row_project in results_project:
                                           wmb_shop,
                                           wmb_stall, wmb_id, row_project[6]]
 
+# test_list = []
+# for test2 in dict_info.keys():
+#         vale_id = dict_info[test2][1]+dict_info[test2][3]+dict_info[test2][5]
+#         test_list.append(vale_id)
+# for test in results_project:
+#     id= test[1] +test[5]+str(test[3]).replace('+', '').strip('(分割)')
+#     if  id not in test_list:
+#         print(test)
+
+
 # 查询外卖邦销售数据
 sql_income = "SELECT tableb.shop_id,tableb.income_amount,tableb.count_sale,tableb.source,tableb.date,tablea.client_code,tablea.shop_name from (SELECT * from ( SELECT sort_name,shop_name,shop_id,substring_index(substring_index(c.client_code,'-' ,d.help_topic_id+1),'-',-1) client_code,city_name from (SELECT a.sort_name,a.shop_name,a.shop_id,a.client_code,a.city_name from t_map_client_wmb_shop a RIGHT JOIN  (SELECT MAX(shop_id) shop_id from t_map_client_wmb_shop where sort_name is not null and client_code is not  null GROUP BY sort_name,client_code) b on a.shop_id=b.shop_id) c join mysql.help_topic d on d.help_topic_id <  (length(c.client_code) - length(replace(c.client_code,'-',''))+1)  ) m) tablea LEFT JOIN (SELECT shop_id,SUM(income_amount) income_amount,COUNT(*) count_sale,source,date from t_map_client_wmb_user_2020_5_22 where date='%s' and send_status !='error' GROUP BY shop_id,source) tableb on tablea.shop_id=tableb.shop_id where tableb.shop_id is not null" % yesterday
 cur.execute(sql_income)
 results_income = cur.fetchall()
+
+for te in results_income:
+
+    sad = str(te[0]) + te[5]
+    if sad not in dict_info.keys():
+        print(te)
+
 list_data = {}
 # 把每个商户构造三个平台数据
 for row_list in results_income:
@@ -196,15 +213,15 @@ for row_income in results_income:
             insert_list[11] = average
         # print(row_income[0],info_list,insert_list[9],insert_list[10])
 # 插入商户
-for insert_row in list_data.values():
-    list2 = insert_row
-    insert_sql = "INSERT into  merchant_sales_statistics (tid,project_id,project_name,stall_id,stall_name,merchant_id,merchant_name,channel_type,plat_type," \
-                 "order_count,sale_amount,average,stream_date,revision,create_by,update_by,is_delete) values (%s,%s,'%s',%s,'%s',%s,'%s',%s,'%s',%s,%s,%s,'%s',%s,'%s','%s',%s)" \
-                 % (list2[0], list2[1], list2[2], list2[3], list2[4], list2[5], list2[6], list2[7], list2[8], list2[9],
-                    list2[10], list2[11], list2[12], list2[13], list2[14], list2[15], list2[16])
-
-    cur.execute(insert_sql)  # 执行sql语句
-    db.commit()  # 提交到数据库执行
+# for insert_row in list_data.values():
+#     list2 = insert_row
+#     insert_sql = "INSERT into  merchant_sales_statistics (tid,project_id,project_name,stall_id,stall_name,merchant_id,merchant_name,channel_type,plat_type," \
+#                  "order_count,sale_amount,average,stream_date,revision,create_by,update_by,is_delete) values (%s,%s,'%s',%s,'%s',%s,'%s',%s,'%s',%s,%s,%s,'%s',%s,'%s','%s',%s)" \
+#                  % (list2[0], list2[1], list2[2], list2[3], list2[4], list2[5], list2[6], list2[7], list2[8], list2[9],
+#                     list2[10], list2[11], list2[12], list2[13], list2[14], list2[15], list2[16])
+#
+#     cur.execute(insert_sql)  # 执行sql语句
+#     db.commit()  # 提交到数据库执行
 
 db.close()
 db_project.close()

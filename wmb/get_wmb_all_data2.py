@@ -36,7 +36,7 @@ def get_signature(page, page_count, timestamp, shop_id, date):
     return signature
 
 
-@retry(stop_max_attempt_number=5, wait_random_min=5000, wait_random_max=10000)
+
 def get_page(shop_id, date):
     developer_id = 100002
     timestamp = int(time.time())
@@ -63,7 +63,7 @@ def get_page(shop_id, date):
     return page_count_get
 
 
-@retry(stop_max_attempt_number=5, wait_random_min=5000, wait_random_max=10000)
+
 def get_data(page_count, shop_id, date):
     # print("重试")
     url = "https://xmxc.wdd88.com/open/order/list"
@@ -179,9 +179,9 @@ def get_data(page_count, shop_id, date):
 shop_sql = "SELECT shop_id from t_map_client_wmb_shop "
 cur.execute(shop_sql)
 results = cur.fetchall()
-print(results)
-date = str(datetime.date.today() - datetime.timedelta(days=1))
 
+date = str(datetime.date.today() - datetime.timedelta(days=1))
+print(date)
 for shop_id_list in results:
 
     shop_id = shop_id_list[0]
@@ -190,7 +190,10 @@ for shop_id_list in results:
     page_count_get = get_page(shop_id, date)
     if page_count_get > 0:
         for page_count in range(1, page_count_get + 1):
-            get_data(page_count, shop_id, date)
+            try:
+                get_data(page_count, shop_id, date)
+            except:
+                print("异常")
 db.close()
 pool.close()
 end_time = datetime.datetime.today()

@@ -39,7 +39,7 @@ def bdToGaoDe(lon, lat):
     theta = math.atan2(y, x) - 0.000003 * math.cos(x * PI)
     lon = z * math.cos(theta)
     lat = z * math.sin(theta)
-    (math.sqrt(x * x + y * y) - 0.00002 * math.sin(y * PI)) *math.cos(math.atan2(y, x) - 0.000003 * math.cos(x * PI))
+    (math.sqrt(x * x + y * y) - 0.00002 * math.sin(y * PI)) * math.cos(math.atan2(y, x) - 0.000003 * math.cos(x * PI))
     return [lon, lat]
 
 

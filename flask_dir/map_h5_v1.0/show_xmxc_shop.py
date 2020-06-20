@@ -4,9 +4,9 @@ import math
 
 from DBUtils.PooledDB import PooledDB
 from flask import Flask, request, Blueprint
-from flask_docs import ApiDoc
+# from flask_docs import ApiDoc
 import pymysql
-from flask_cors import *
+# from flask_cors import *
 import json
 import time
 import datetime
@@ -15,10 +15,10 @@ import redis
 import numpy as np
 
 app = Flask(__name__)
-CORS(app, supports_credentials=True)
+# CORS(app, supports_credentials=True)
 app.config['API_DOC_MEMBER'] = ['api', 'platform']
 
-ApiDoc(app)
+# ApiDoc(app)
 
 api = Blueprint('api', __name__)
 platform = Blueprint('platform', __name__)
@@ -152,8 +152,10 @@ xm_cate_dict = {"粉面馆": "米粉面馆",
 
 xm_project_dict = {"百脑汇": ["北京", "北京市朝阳区朝外大街99号二层", "116.445409,39.923854"],
                    "曹杨路店": ["上海", "上海市普陀区曹杨路458、460、462号地下一层04室", "121.420233,31.236898"],
+                   "天钥桥路店": ["上海", "上海市徐汇区天钥桥路580号星游城项目B1-16室", "121.442517,31.18557"],
                    "曹杨路二店": ["上海", "上海市普陀区曹杨路店1040弄2号楼三楼03室", "121.405638,31.245883"],
                    "朝阳路红星美凯龙": ["北京", "北京市朝阳区高井村甲8号朝阳路红星美凯龙五层E8001-E8007", "116.540271,39.914985"],
+                   "朝阳路红星美凯龙(店中店)": ["北京", "北京市朝阳区高井村甲8号朝阳路红星美凯龙五层E8001-E8007", "116.540271,39.914985"],
                    "车公庄": ["北京", "北京市西城区车公庄大街9号五栋大楼C座1楼", "116.349191,39.933619"],
                    "大望路": ["北京", "朝阳区西大望路3号院2号楼蓝堡国际", "116.477324,39.912110"],
                    "东直门": ["北京", "北京市东城区东直门外大街42号宇飞大厦地上三层商业301-05", "116.437370,39.940220"],
@@ -165,6 +167,7 @@ xm_project_dict = {"百脑汇": ["北京", "北京市朝阳区朝外大街99号�
                    "广中西路店": ["上海", "上海市静安区广中西路777弄91、99号B1层B区", "121.438338,31.278491"],
                    "国安路店": ["上海", "上海市杨浦区国霞路345号203-206室", "121.505422,31.310684"],
                    "国定东路店": ["上海", "上海市国定东路293号", "121.520749,31.296839"],
+                   "国定东路二店": ["上海", "上海市国定东路293号", "121.520749,31.296839"],
                    "国贸": ["北京", "北京市朝阳区永安西里10号", "116.447587,39.906753"],
                    "国美第一城": ["北京", "北京市朝阳区青年路西里2号院11号楼商业01一层消防通道至（15）轴", "116.513105,39.932906"],
                    "国权路店": ["上海", "上海市杨浦区国权路43号地下1层01、02、03、06、07、08、09、10室", "121.518986,31.287088"],
@@ -188,6 +191,7 @@ xm_project_dict = {"百脑汇": ["北京", "北京市朝阳区朝外大街99号�
                    "酒仙桥": ["北京", "北京市朝阳区酒仙桥东路18号尚科办公室社区地下1层", "116.500218,39.974830"],
                    "酒仙桥二店": ["北京", "北京市朝阳区酒仙桥东路18号尚科办公室社区地上2层", "116.500218,39.974830"],
                    "凯旋路店": ["上海", "上海市徐汇区凯旋路2588号501-1B室A区", "121.429156,31.185246"],
+                   "凯旋路二店": ["上海", "上海市徐汇区凯旋路2588号501-1B室A区", "121.429156,31.185246"],
                    "控江路店": ["上海", "上海市杨浦区控江路1555号B1层", "121.518979,31.274719"],
                    "兰溪路店": ["上海", "上海市普陀区兰溪路141号4楼C区", "121.404623,31.239418"],
                    "梨园": ["北京", "通州区云景东路1号魔方公寓4楼", "116.666818,39.885136"],
@@ -437,6 +441,182 @@ def getTheMonth(n, strf):
     return datetime.date(year, month, 1).strftime(strf)
 
 
+# 查询场地筛选方法
+def get_project_screen(results, jsondu, is_gas, is_parish_food, min_construction_area, max_construction_area,
+                       min_monthly_rent, max_monthly_rent):
+    sq = []
+    # 组合返回数据
+    for row2 in results:
+        # stalls_info = stalls_dic.get(row[0])
+        data = {}
+        project_name = row2[1]
+
+        project_id = row2[0]
+        if row2[6] is None:
+            stall_num = 0
+        else:
+            stall_num = row2[6]
+        if project_name in xm_project_dict.keys():
+            project_list = xm_project_dict.get(project_name)
+            address = project_list[1]
+            latitude = project_list[2].split(',')[1]
+            longitude = project_list[2].split(',')[0]
+        else:
+            address = row2[2]
+            latitude = row2[3]
+            longitude = row2[4]
+
+        month_sale = jsondu.get(str(project_id), [0, 0, 0, 0])[1]
+        shop_count = jsondu.get(str(project_id), [0, 0, 0, 0])[2]
+        shop_ave = jsondu.get(str(project_id), [0, 0, 0, 0])[3]
+        data['project_id'] = project_id
+        data['project_name'] = project_name
+        data['address'] = address
+        data['latitude'] = latitude
+        data['longitude'] = longitude
+        data['month_sale'] = month_sale
+        data['shop_count'] = shop_count
+        data['shop_ave'] = shop_ave
+        data['empty_stalls_num'] = stall_num
+        data['stalls_id'] = row2[8]
+        data['stalls_name'] = row2[9]
+        if row2[10] is None:
+            monthly_rent = 0
+        else:
+            monthly_rent = float(row2[10])
+        data['monthly_rent'] = monthly_rent
+        data['is_gas'] = row2[11]
+        if row2[12] is None:
+            basic_battery = 0
+        else:
+            basic_battery = float(row2[12])
+        data['basic_battery'] = basic_battery
+        data['is_parish_food'] = row2[13]
+        if row2[14] is None:
+            construction_area = 0
+        else:
+            construction_area = float(row2[14])
+        data['construction_area'] = construction_area
+        sq.append(data)
+    project_dic = {}
+    # 遍历结果，通过条件筛选
+    for project_row in sq:
+
+        # 全选燃气和堂食
+        if is_gas is None and is_parish_food is None:
+            if min_construction_area <= project_row.get(
+                    'construction_area') and max_construction_area >= project_row.get(
+                'construction_area') and min_monthly_rent <= project_row.get(
+                'monthly_rent') and max_monthly_rent >= project_row.get('monthly_rent'):
+                if project_dic.get(project_row.get('project_id')) is not None:
+
+                    project_dic.get(project_row.get('project_id'))[8] += 1
+                    project_dic.get(project_row.get('project_id'))[9] = \
+                        project_dic.get(project_row.get('project_id'))[9] + str(project_row.get('stalls_id')) + ','
+                else:
+                    project_dic[project_row.get('project_id')] = [project_row.get('project_id'),
+                                                                  project_row.get('project_name'),
+                                                                  project_row.get('address'),
+                                                                  project_row.get('latitude'),
+                                                                  project_row.get('longitude'),
+                                                                  project_row.get('month_sale'),
+                                                                  project_row.get('shop_count'),
+                                                                  project_row.get('shop_ave'),
+                                                                  1,
+                                                                  str(project_row.get('stalls_id')) + ',']
+
+
+        # 筛选燃气、全选堂食
+        elif is_gas is not None and is_parish_food is not None:
+            if int(is_gas) == project_row.get('is_gas') and int(is_parish_food) == project_row.get(
+                    'is_parish_food') and min_construction_area <= project_row.get(
+                'construction_area') and max_construction_area >= project_row.get(
+                'construction_area') and min_monthly_rent <= project_row.get(
+                'monthly_rent') and max_monthly_rent >= project_row.get('monthly_rent'):
+                if project_dic.get(project_row.get('project_id')) is not None:
+
+                    project_dic.get(project_row.get('project_id'))[8] += 1
+                    project_dic.get(project_row.get('project_id'))[9] = \
+                        project_dic.get(project_row.get('project_id'))[9] + str(project_row.get('stalls_id')) + ','
+                else:
+                    project_dic[project_row.get('project_id')] = [project_row.get('project_id'),
+                                                                  project_row.get('project_name'),
+                                                                  project_row.get('address'),
+                                                                  project_row.get('latitude'),
+                                                                  project_row.get('longitude'),
+                                                                  project_row.get('month_sale'),
+                                                                  project_row.get('shop_count'),
+                                                                  project_row.get('shop_ave'),
+                                                                  1,
+                                                                  str(project_row.get('stalls_id')) + ',']
+
+        # 筛选堂食、筛选燃气
+        elif is_gas is None and is_parish_food is not None:
+
+            if int(is_parish_food) == project_row.get(
+                    'is_parish_food') and min_construction_area <= project_row.get(
+                'construction_area') and max_construction_area >= project_row.get(
+                'construction_area') and min_monthly_rent <= project_row.get(
+                'monthly_rent') and max_monthly_rent >= project_row.get('monthly_rent'):
+                if project_dic.get(project_row.get('project_id')) is not None:
+
+                    project_dic.get(project_row.get('project_id'))[8] += 1
+                    project_dic.get(project_row.get('project_id'))[9] = \
+                        project_dic.get(project_row.get('project_id'))[9] + str(project_row.get('stalls_id')) + ','
+                else:
+                    project_dic[project_row.get('project_id')] = [project_row.get('project_id'),
+                                                                  project_row.get('project_name'),
+                                                                  project_row.get('address'),
+                                                                  project_row.get('latitude'),
+                                                                  project_row.get('longitude'),
+                                                                  project_row.get('month_sale'),
+                                                                  project_row.get('shop_count'),
+                                                                  project_row.get('shop_ave'),
+                                                                  1,
+                                                                  str(project_row.get('stalls_id')) + ',']
+        # 筛选燃气 全选堂食
+        elif is_gas is not None and is_parish_food is None:
+
+            if int(is_gas) == project_row.get('is_gas') and min_construction_area <= project_row.get(
+                    'construction_area') and max_construction_area >= project_row.get(
+                'construction_area') and min_monthly_rent <= project_row.get(
+                'monthly_rent') and max_monthly_rent >= project_row.get('monthly_rent'):
+                if project_dic.get(project_row.get('project_id')) is not None:
+
+                    project_dic.get(project_row.get('project_id'))[8] += 1
+                    project_dic.get(project_row.get('project_id'))[9] = \
+                        project_dic.get(project_row.get('project_id'))[9] + str(project_row.get('stalls_id')) + ','
+                else:
+                    project_dic[project_row.get('project_id')] = [project_row.get('project_id'),
+                                                                  project_row.get('project_name'),
+                                                                  project_row.get('address'),
+                                                                  project_row.get('latitude'),
+                                                                  project_row.get('longitude'),
+                                                                  project_row.get('month_sale'),
+                                                                  project_row.get('shop_count'),
+                                                                  project_row.get('shop_ave'),
+                                                                  1,
+                                                                  str(project_row.get('stalls_id')) + ',']
+
+    return_list = []
+    for return_row in project_dic.values():
+        return_dic = {}
+        return_dic['project_id'] = return_row[0]
+        return_dic['project_name'] = return_row[1]
+        return_dic['address'] = return_row[2]
+        return_dic['latitude'] = return_row[3]
+        return_dic['longitude'] = return_row[4]
+        return_dic['month_sale'] = return_row[5]
+        return_dic['shop_count'] = return_row[6]
+        return_dic['shop_ave'] = return_row[7]
+        return_dic['empty_stalls_num'] = return_row[8]
+        return_dic['stalls_list'] = str(return_row[9]).strip(',')
+        if return_row[8] > 0:
+            return_list.append(return_dic)
+    return_json = json.dumps(return_list, ensure_ascii=False)
+    return return_json
+
+
 # 把格式化转化成时间戳
 def str_to_timestamp(str_time=None, format='%Y-%m-%d'):
     if str_time:
@@ -522,6 +702,7 @@ def get_office_info():
         """
     db = pool_mapmarkeronline.connection()
     cur = db.cursor()
+    print(request.headers.get("User-Agent"))
     city_id = request.args.get('city_id')
     coordinate = request.args.get('coordinate')
     distance = request.args.get('distance')
@@ -1672,6 +1853,7 @@ def get_project_list():
     |    shop_count    |    店铺数    |    int   |    3421   |
     |    shop_ave    |    客单价    |    double   |    25.255   |
     |    empty_stalls_num    |    空置档口数    |    int   |    3   |
+    |    stalls_list    |    可招商档口id    |    list   |    [1548239239577488, 1548239239723547]  |
 
     #### return
     - ##### json
@@ -1714,146 +1896,12 @@ def get_project_list():
         elif city_id == '4':
             city_name = '深圳'
 
-        sql = "SELECT tablea.*, tableb.* FROM (SELECT m.*,n.stall_count from ( SELECT a.project_id, a.project_name, b.address, b.latitude, b.longitude, a.business_status FROM project a LEFT JOIN development.project_base_info b ON a.project_id = b.tid WHERE b.address IS NOT NULL AND b.latitude IS NOT NULL AND b.longitude IS NOT NULL AND a.area_name = '%s' AND a.is_delete = 0 ) m LEFT JOIN (SELECT project_id,COUNT(*) stall_count from stalls where is_delete=0 and `status` in (0,5,6) GROUP BY project_id) n on m.project_id=n.project_id) tablea JOIN ( SELECT s.project_id, s.stalls_id, s.stalls_name, si.image_url, s.monthly_rent, s.gas, s.basic_battery, s.parish_food, s.construction_area, s.`status`, si.type FROM stalls s LEFT JOIN stalls_img si ON s.stalls_id = si.stalls_id WHERE s.is_delete = 0 ) tableb ON tablea.project_id = tableb.project_id WHERE tablea.business_status = 0 and tablea.stall_count is not null and tableb.`status` in  (0, 5, 6)" % city_name
+        sql = "SELECT tablea.*, tableb.* FROM ( SELECT m.*, n.stall_count FROM ( SELECT a.project_id, a.project_name, b.address, b.latitude, b.longitude, a.business_status FROM project a LEFT JOIN development.project_base_info b ON a.project_id = b.tid WHERE  a.area_name = '%s' AND a.is_delete = 0 ) m LEFT JOIN ( SELECT project_id, COUNT(*) stall_count FROM stalls WHERE is_delete = 0 AND `status` IN (0, 5, 6) GROUP BY project_id ) n ON m.project_id = n.project_id ) tablea JOIN ( SELECT s.project_id, s.stalls_id, s.stalls_name, s.monthly_rent, s.gas, s.basic_battery, s.parish_food, s.construction_area, s.`status` FROM stalls s WHERE s.is_delete = 0 ) tableb ON tablea.project_id = tableb.project_id WHERE tablea.business_status = 0 AND tablea.stall_count IS NOT NULL AND tableb.`status` IN (0, 5, 6)" % city_name
         cur.execute(sql)
         results = cur.fetchall()
-        sq = []
-        # 组合返回数据
-        for row2 in results:
-            # stalls_info = stalls_dic.get(row[0])
-            data = {}
-            project_name = row2[1]
-
-            project_id = row2[0]
-            if row2[6] is None:
-                stall_num = 0
-            else:
-                stall_num = row2[6]
-            if project_name in xm_project_dict.keys():
-                project_list = xm_project_dict.get(project_name)
-                address = project_list[1]
-                latitude = project_list[2].split(',')[1]
-                longitude = project_list[2].split(',')[0]
-            else:
-                address = row2[2]
-                latitude = row2[3]
-                longitude = row2[4]
-
-            month_sale = jsondu.get(str(project_id), [0, 0, 0, 0])[1]
-            shop_count = jsondu.get(str(project_id), [0, 0, 0, 0])[2]
-            shop_ave = jsondu.get(str(project_id), [0, 0, 0, 0])[3]
-            data['project_id'] = project_id
-            data['project_name'] = project_name
-            data['address'] = address
-            data['latitude'] = latitude
-            data['longitude'] = longitude
-            data['month_sale'] = month_sale
-            data['shop_count'] = shop_count
-            data['shop_ave'] = shop_ave
-            data['empty_stalls_num'] = stall_num
-            data['stalls_id'] = row2[8]
-            data['stalls_name'] = row2[9]
-            if row2[11] is None:
-                monthly_rent = 0
-            else:
-                monthly_rent = float(row2[11])
-            data['monthly_rent'] = monthly_rent
-            data['is_gas'] = row2[12]
-            if row2[13] is None:
-                basic_battery = 0
-            else:
-                basic_battery = float(row2[13])
-            data['basic_battery'] = basic_battery
-            data['is_parish_food'] = row2[14]
-            if row2[15] is None:
-                construction_area = 0
-            else:
-                construction_area = float(row2[15])
-            data['construction_area'] = construction_area
-            sq.append(data)
-
-        # 遍历结果，通过条件筛选
-        for project_row in sq:
-            # 全选燃气和堂食
-            if is_gas is None and is_parish_food is None:
-                if min_construction_area <= project_row.get(
-                        'construction_area') and max_construction_area >= project_row.get(
-                    'construction_area') and min_monthly_rent <= project_row.get(
-                    'monthly_rent') and max_monthly_rent >= project_row.get('monthly_rent'):
-                    project_dic[project_row.get('project_id')] = [project_row.get('project_id'),
-                                                                  project_row.get('project_name'),
-                                                                  project_row.get('address'),
-                                                                  project_row.get('latitude'),
-                                                                  project_row.get('longitude'),
-                                                                  project_row.get('month_sale'),
-                                                                  project_row.get('shop_count'),
-                                                                  project_row.get('shop_ave'),
-                                                                  project_row.get('empty_stalls_num')]
-            # 筛选燃气、全选堂食
-            elif is_gas is not None and is_parish_food is not None:
-                if int(is_gas) == project_row.get('is_gas') and int(is_parish_food) == project_row.get(
-                        'is_parish_food') and min_construction_area <= project_row.get(
-                    'construction_area') and max_construction_area >= project_row.get(
-                    'construction_area') and min_monthly_rent <= project_row.get(
-                    'monthly_rent') and max_monthly_rent >= project_row.get('monthly_rent'):
-                    project_dic[project_row.get('project_id')] = [project_row.get('project_id'),
-                                                                  project_row.get('project_name'),
-                                                                  project_row.get('address'),
-                                                                  project_row.get('latitude'),
-                                                                  project_row.get('longitude'),
-                                                                  project_row.get('month_sale'),
-                                                                  project_row.get('shop_count'),
-                                                                  project_row.get('shop_ave'),
-                                                                  project_row.get('empty_stalls_num')]
-
-            # 筛选堂食、筛选燃气
-            elif is_gas is None and is_parish_food is not None:
-
-                if int(is_parish_food) == project_row.get(
-                        'is_parish_food') and min_construction_area <= project_row.get(
-                    'construction_area') and max_construction_area >= project_row.get(
-                    'construction_area') and min_monthly_rent <= project_row.get(
-                    'monthly_rent') and max_monthly_rent >= project_row.get('monthly_rent'):
-                    project_dic[project_row.get('project_id')] = [project_row.get('project_id'),
-                                                                  project_row.get('project_name'),
-                                                                  project_row.get('address'),
-                                                                  project_row.get('latitude'),
-                                                                  project_row.get('longitude'),
-                                                                  project_row.get('month_sale'),
-                                                                  project_row.get('shop_count'),
-                                                                  project_row.get('shop_ave'),
-                                                                  project_row.get('empty_stalls_num')]
-            # 筛选燃气 全选堂食
-            elif is_gas is not None and is_parish_food is None:
-
-                if int(is_gas) == project_row.get('is_gas') and min_construction_area <= project_row.get(
-                        'construction_area') and max_construction_area >= project_row.get(
-                    'construction_area') and min_monthly_rent <= project_row.get(
-                    'monthly_rent') and max_monthly_rent >= project_row.get('monthly_rent'):
-                    project_dic[project_row.get('project_id')] = [project_row.get('project_id'),
-                                                                  project_row.get('project_name'),
-                                                                  project_row.get('address'),
-                                                                  project_row.get('latitude'),
-                                                                  project_row.get('longitude'),
-                                                                  project_row.get('month_sale'),
-                                                                  project_row.get('shop_count'),
-                                                                  project_row.get('shop_ave'),
-                                                                  project_row.get('empty_stalls_num')]
-
-        return_list = []
-        for return_row in project_dic.values():
-            return_dic = {}
-            return_dic['project_id'] = return_row[0]
-            return_dic['project_name'] = return_row[1]
-            return_dic['address'] = return_row[2]
-            return_dic['latitude'] = return_row[3]
-            return_dic['longitude'] = return_row[4]
-            return_dic['month_sale'] = return_row[5]
-            return_dic['shop_count'] = return_row[6]
-            return_dic['shop_ave'] = return_row[7]
-            return_dic['empty_stalls_num'] = return_row[8]
-            return_list.append(return_dic)
-        return_json = json.dumps(return_list, ensure_ascii=False)
+        return_json = get_project_screen(results, jsondu, is_gas, is_parish_food, min_construction_area,
+                                         max_construction_area,
+                                         min_monthly_rent, max_monthly_rent)
         db.close()
         db_map.close()
     # 如果redis没有，请求数据库构建数据并存入redis
@@ -1869,7 +1917,7 @@ def get_project_list():
             city_name = '深圳'
         # 查询门店经纬度、id、名称
 
-        sql = "SELECT tablea.*, tableb.* FROM (SELECT m.*,n.stall_count from ( SELECT a.project_id, a.project_name, b.address, b.latitude, b.longitude, a.business_status FROM project a LEFT JOIN development.project_base_info b ON a.project_id = b.tid WHERE b.address IS NOT NULL AND b.latitude IS NOT NULL AND b.longitude IS NOT NULL AND a.area_name = '%s' AND a.is_delete = 0 ) m LEFT JOIN (SELECT project_id,COUNT(*) stall_count from stalls where is_delete=0 and `status` in (0,5,6) GROUP BY project_id) n on m.project_id=n.project_id) tablea JOIN ( SELECT s.project_id, s.stalls_id, s.stalls_name, si.image_url, s.monthly_rent, s.gas, s.basic_battery, s.parish_food, s.construction_area, s.`status`, si.type FROM stalls s LEFT JOIN stalls_img si ON s.stalls_id = si.stalls_id WHERE s.is_delete = 0 ) tableb ON tablea.project_id = tableb.project_id WHERE tablea.business_status = 0 and tablea.stall_count is not null and tableb.`status` in  (0, 5, 6)" % city_name
+        sql = "SELECT tablea.*, tableb.* FROM (SELECT m.*,n.stall_count from ( SELECT a.project_id, a.project_name, b.address, b.latitude, b.longitude, a.business_status FROM project a LEFT JOIN development.project_base_info b ON a.project_id = b.tid WHERE  a.area_name = '%s' AND a.is_delete = 0 ) m LEFT JOIN (SELECT project_id,COUNT(*) stall_count from stalls where is_delete=0 and `status` in (0,5,6) GROUP BY project_id) n on m.project_id=n.project_id) tablea JOIN ( SELECT s.project_id, s.stalls_id, s.stalls_name, si.image_url, s.monthly_rent, s.gas, s.basic_battery, s.parish_food, s.construction_area, s.`status`, si.type FROM stalls s LEFT JOIN stalls_img si ON s.stalls_id = si.stalls_id WHERE s.is_delete = 0 ) tableb ON tablea.project_id = tableb.project_id WHERE tablea.business_status = 0 and tablea.stall_count is not null and tableb.`status` in  (0, 5, 6)" % city_name
         cur.execute(sql)
         results = cur.fetchall()
 
@@ -1906,140 +1954,14 @@ def get_project_list():
         redis_conn.set(cheak_key, jsondu)
         redis_conn.expire(cheak_key, 86400)
         # 组合返回数据
-        for row2 in results:
-            # stalls_info = stalls_dic.get(row[0])
-            data = {}
-            project_name = row2[1]
-
-            project_id = row2[0]
-            if row2[6] is None:
-                stall_num = 0
-            else:
-                stall_num = row2[6]
-            if project_name in xm_project_dict.keys():
-                project_list = xm_project_dict.get(project_name)
-                address = project_list[1]
-                latitude = project_list[2].split(',')[1]
-                longitude = project_list[2].split(',')[0]
-            else:
-                address = row2[2]
-                latitude = row2[3]
-                longitude = row2[4]
-            month_sale = project_sale_dic.get(project_id, [0, 0, 0, 0])[1]
-            shop_count = project_sale_dic.get(project_id, [0, 0, 0, 0])[2]
-            shop_ave = project_sale_dic.get(project_id, [0, 0, 0, 0])[3]
-            data['project_id'] = project_id
-            data['project_name'] = project_name
-            data['address'] = address
-            data['latitude'] = latitude
-            data['longitude'] = longitude
-            data['month_sale'] = month_sale
-            data['shop_count'] = shop_count
-            data['shop_ave'] = shop_ave
-            data['empty_stalls_num'] = stall_num
-            data['stalls_id'] = row2[8]
-            data['stalls_name'] = row2[9]
-            if row2[11] is None:
-                monthly_rent = 0
-            else:
-                monthly_rent = float(row2[11])
-            data['monthly_rent'] = monthly_rent
-            data['is_gas'] = row2[12]
-            if row2[13] is None:
-                basic_battery = 0
-            else:
-                basic_battery = float(row2[13])
-            data['basic_battery'] = basic_battery
-            data['is_parish_food'] = row2[14]
-            if row2[15] is None:
-                construction_area = 0
-            else:
-                construction_area = float(row2[15])
-            data['construction_area'] = construction_area
-            sq.append(data)
-        project_dic = {}
-
-        for project_row in sq:
-
-            if is_gas is None and is_parish_food is None:
-                if min_construction_area <= project_row.get(
-                        'construction_area') and max_construction_area >= project_row.get(
-                    'construction_area') and min_monthly_rent <= project_row.get(
-                    'monthly_rent') and max_monthly_rent >= project_row.get('monthly_rent'):
-                    project_dic[project_row.get('project_id')] = [project_row.get('project_id'),
-                                                                  project_row.get('project_name'),
-                                                                  project_row.get('address'),
-                                                                  project_row.get('latitude'),
-                                                                  project_row.get('longitude'),
-                                                                  project_row.get('month_sale'),
-                                                                  project_row.get('shop_count'),
-                                                                  project_row.get('shop_ave'),
-                                                                  project_row.get('empty_stalls_num')]
-
-            elif is_gas is not None and is_parish_food is not None:
-                if int(is_gas) == project_row.get('is_gas') and int(is_parish_food) == project_row.get(
-                        'is_parish_food') and min_construction_area <= project_row.get(
-                    'construction_area') and max_construction_area >= project_row.get(
-                    'construction_area') and min_monthly_rent <= project_row.get(
-                    'monthly_rent') and max_monthly_rent >= project_row.get('monthly_rent'):
-                    project_dic[project_row.get('project_id')] = [project_row.get('project_id'),
-                                                                  project_row.get('project_name'),
-                                                                  project_row.get('address'),
-                                                                  project_row.get('latitude'),
-                                                                  project_row.get('longitude'),
-                                                                  project_row.get('month_sale'),
-                                                                  project_row.get('shop_count'),
-                                                                  project_row.get('shop_ave'),
-                                                                  project_row.get('empty_stalls_num')]
-
-            elif is_gas is None and is_parish_food is not None:
-                if int(is_parish_food) == project_row.get(
-                        'is_parish_food') and min_construction_area <= project_row.get(
-                    'construction_area') and max_construction_area >= project_row.get(
-                    'construction_area') and min_monthly_rent <= project_row.get(
-                    'monthly_rent') and max_monthly_rent >= project_row.get('monthly_rent'):
-                    project_dic[project_row.get('project_id')] = [project_row.get('project_id'),
-                                                                  project_row.get('project_name'),
-                                                                  project_row.get('address'),
-                                                                  project_row.get('latitude'),
-                                                                  project_row.get('longitude'),
-                                                                  project_row.get('month_sale'),
-                                                                  project_row.get('shop_count'),
-                                                                  project_row.get('shop_ave'),
-                                                                  project_row.get('empty_stalls_num')]
-            elif is_gas is not None and is_parish_food is None:
-                if int(is_gas) == project_row.get('is_gas') and min_construction_area <= project_row.get(
-                        'construction_area') and max_construction_area >= project_row.get(
-                    'construction_area') and min_monthly_rent <= project_row.get(
-                    'monthly_rent') and max_monthly_rent >= project_row.get('monthly_rent'):
-                    project_dic[project_row.get('project_id')] = [project_row.get('project_id'),
-                                                                  project_row.get('project_name'),
-                                                                  project_row.get('address'),
-                                                                  project_row.get('latitude'),
-                                                                  project_row.get('longitude'),
-                                                                  project_row.get('month_sale'),
-                                                                  project_row.get('shop_count'),
-                                                                  project_row.get('shop_ave'),
-                                                                  project_row.get('empty_stalls_num')]
-
-        return_list = []
-        for return_row in project_dic.values():
-            return_dic = {}
-            return_dic['project_id'] = return_row[0]
-            return_dic['project_name'] = return_row[1]
-            return_dic['address'] = return_row[2]
-            return_dic['latitude'] = return_row[3]
-            return_dic['longitude'] = return_row[4]
-            return_dic['month_sale'] = return_row[5]
-            return_dic['shop_count'] = return_row[6]
-            return_dic['shop_ave'] = return_row[7]
-            return_dic['empty_stalls_num'] = return_row[8]
-            return_list.append(return_dic)
-        return_json = json.dumps(return_list, ensure_ascii=False)
+        return_json = get_project_screen(results, jsondu, is_gas, is_parish_food, min_construction_area,
+                                         max_construction_area,
+                                         min_monthly_rent, max_monthly_rent)
         db.close()
         db_map.close()
     redis_conn.close()
     return return_json
+
 
 # 返回档口统计数据
 @app.route('/api/getStalls')
@@ -2087,7 +2009,7 @@ def get_stalls():
             project_dic[row_pic[0]] = row_pic[3]
     stalls_dic = {}
     for row2 in results:
-        if row2[9] in (0,5,6):
+        if row2[9] in (0, 5, 6):
             stalls_dic[row2[1]] = row2
 
     for row in stalls_dic.values():
@@ -2119,6 +2041,95 @@ def get_stalls():
             construction_area = float(row[8])
         data['construction_area'] = construction_area
         sq.append(data)
+
+    db.close()
+    jsondu = json.dumps(sq, ensure_ascii=False)
+    return jsondu
+
+
+# 返回档口统计数据
+@app.route('/api/getStallsByStallId')
+def get_stalls_by_id():
+    """查看项目下档口统计
+
+    @@@
+    #### 参数列表
+
+    | 参数 | 描述 | 类型 | 例子 |
+    |--------|--------|--------|--------|
+    |    stalls_list    |    档口id字符串    |    long   |    1548239239577488,1548239239723547    |
+    |    project_id    |    项目id    |    Long   |    1548233985051132    |
+
+    #### 字段解释
+
+    | 名称 | 描述 | 类型 |
+    |--------|--------|--------|--------|
+    |    project_id    |    场地id    |    Long   |
+    |    stalls_id    |    档口id    |    Long   |
+    |    stalls_name    |    档口名称    |    String   |
+    |    image_url    |    场地户型图url    |    String   |
+    |    monthly_rent    |    月租金    |    float   |
+    |    is_gas    |    是否有燃气 0-有；1-无   |    String   |
+    |    basic_battery    |    基础电量    |    float   |
+    |    is_parish_food    |    是否可堂食 0-否；1-是   |    String   |
+    |    construction_area    |    建筑面积    |    float   |
+
+    #### return
+    - ##### json
+    > [{"project_id": 1548233985051132, "stalls_id": 1548239278109328, "stalls_name": "A2", "image_url": "https://dev-xiongmaoxingchu-food.oss-cn-beijing.aliyuncs.com/fe072c8db4f94a1b869442859e1034ea-十里堡二店.png", "monthly_rent": 15000.0, "is_gas": "有", "basic_battery": 35.0, "is_parish_food": "否"}]
+    @@@
+    """
+    db = pool_project.connection()
+    cur = db.cursor()
+    stalls_list = request.args.get('stalls_list').split(',')
+
+    project_id = request.args.get('project_id')
+
+    sql = "SELECT s.project_id,s.stalls_id,s.stalls_name,si.image_url,s.monthly_rent,s.gas,s.basic_battery,s.parish_food,s.construction_area,s.`status`,si.type from stalls s LEFT JOIN stalls_img si on s.stalls_id=si.stalls_id  where  s.is_delete=0  and  s.project_id=%s  " % project_id
+    cur.execute(sql)
+    results = cur.fetchall()
+
+    sq = []
+    project_dic = {}
+    for row_pic in results:
+        if row_pic[10] == 0:
+            project_dic[row_pic[0]] = row_pic[3]
+    stalls_dic = {}
+    for row2 in results:
+        if row2[9] in (0, 5, 6):
+            stalls_dic[row2[1]] = row2
+
+    for row in stalls_dic.values():
+
+        data = {}
+
+        data['project_id'] = row[0]
+        data['stalls_id'] = row[1]
+        data['stalls_name'] = row[2]
+        if row[0] in project_dic.keys():
+            data['image_url'] = project_dic.get(row[0])
+        else:
+            data['image_url'] = ''
+        if row[4] is None:
+            monthly_rent = 0
+        else:
+            monthly_rent = float(row[4])
+        data['monthly_rent'] = monthly_rent
+        data['is_gas'] = row[5]
+        if row[6] is None:
+            basic_battery = 0
+        else:
+            basic_battery = float(row[6])
+        data['basic_battery'] = basic_battery
+        data['is_parish_food'] = row[7]
+        if row[8] is None:
+            construction_area = 0
+        else:
+            construction_area = float(row[8])
+        data['construction_area'] = construction_area
+
+        if str(row[1]) in stalls_list:
+            sq.append(data)
 
     db.close()
     jsondu = json.dumps(sq, ensure_ascii=False)
@@ -2406,6 +2417,7 @@ def get_cate_recommend_shop():
             |--------|--------|--------|--------|
             |    project_id    |    项目id    |    string   |    1548233985051132    |
             |    cate_name    |    品类名称    |    string   |    快餐便当    |
+            |    platform    |    平台（elm、mt）    |    string   |    elm    |
 
             #### 字段解释
 
@@ -2430,9 +2442,10 @@ def get_cate_recommend_shop():
     cur_mapmarker = db_mapmarker.cursor()
     project_id = request.args.get("project_id")
     cate_name = request.args.get("cate_name")
-    sql = "SELECT * from t_map_h5_shop where platform='mt' and  update_time BETWEEN '%s' and '%s' and  project_id=%s and cate_name='%s'" % (
-        fist, last, project_id, cate_name)
-
+    platform = request.args.get("platform")
+    sql = "SELECT * from t_map_h5_shop where platform='%s' and  update_time BETWEEN '%s' and '%s' and  project_id=%s and cate_name='%s'" % (
+        platform, fist, last, project_id, cate_name)
+    print(sql)
     cur_mapmarker.execute(sql)
     results = cur_mapmarker.fetchall()
     all_month_sale = 0
@@ -2445,21 +2458,30 @@ def get_cate_recommend_shop():
         month_sale = row[5]
         all_month_sale += month_sale
         shop_dict['shop_name'] = row[4]
-        shop_dict['call_center'] = row[14]
+        if row[14] is None:
+            shop_dict['call_center'] = ''
+        else:
+            shop_dict['call_center'] = row[14]
         shop_dict['month_sale'] = row[5]
         shop_dict['ave_price'] = row[6]
-        if row[6] > 0:
-            income = row[6] * row[5]
-            all_income += income
-            income_month_sale += month_sale
         shop_dict['distance'] = row[8]
+        if platform == 'mt':
+            if row[6] > 0:
+                income = row[6] * row[5]
+                all_income += income
+                income_month_sale += month_sale
+        else:
+            income_month_sale = 0
+
         sq.append(shop_dict)
     sq1 = sorted(sq, key=lambda x: x["month_sale"], reverse=True)
     if income_month_sale == 0:
         cate_ave = 0
     else:
         cate_ave = all_income / income_month_sale
+    # 必须
     re_dict['all_month_sale'] = all_month_sale
+    # 非必须
     re_dict['cate_ave'] = cate_ave
     re_dict['shop_list'] = sq1
 
@@ -2610,6 +2632,7 @@ def get_cate_ave_line():
 
         cur_mapmarker.execute(sql)
         results = cur_mapmarker.fetchall()
+        print(sql)
         time_dict = [str(first), str(month_3), str(month_2), str(month_1)]
         less15 = []
         between15_and25 = []
@@ -3555,6 +3578,227 @@ def get_cate_rank_ave_section():
     redis_conn.close()
     db_mapmarker.close()
     return jsondu
+
+
+# 品牌列表
+@app.route('/api/brandList')
+def brand_list():
+    """返回找店下客单价区间(只有美团)
+        @@@
+        #### 参数列表
+        | 参数 | 描述 | 类型 | 例子 |
+        |--------|--------|--------|--------|
+        |    city_id    |    城市id    |    string   |    1    |
+        |    cate_name    |    品类名称    |    string   |    快餐便当    |
+        #### 字段解释
+        | 名称 | 描述 | 类型 |
+        |--------|--------|--------|--------|
+        |    brandName    |    品类名称    |    string   |
+        |    cateName    |    品牌名称    |    string   |
+        |    iconUrl    |    图标地址    |    string   |
+        |    shopAve    |    客单价    |    float   |
+        |    monthSale    |    月销单量   |    int   |
+        |    markCount    |    店铺数     |    int   |
+        |    monthSaleAve    |    店铺平均月销单量    |    float   |
+        #### return
+        - ##### json
+        > [{"brandName": "张亮麻辣烫", "cateName": "麻辣烫冒菜", "iconUrl": null, "shopAve": 17, "monthSale": 1724778, "markCount": 533, "monthSaleAve": 3236.0}]
+        @@@
+        """
+
+    db_mapmarker = pool_mapmarkeronline.connection()
+    cur_mapmarker = db_mapmarker.cursor()
+    city_id = request.args.get("city_id")
+    cate_name = request.args.get("cate_name")
+    if cate_name is None:
+        is_all = 1
+    else:
+        is_all = -1
+
+    sql = "SELECT " \
+          "mark_name,ka_name,ka_cate_name,longitude," \
+          "latitude,icon_address,mark_address,mark_sale_num_elm," \
+          "mark_sale_num_mt,mark_sale_ave_mt from t_map_ka_mark_bak " \
+          "where  " \
+          "if(1=%d ,true, ka_cate_name='%s') " \
+          "and city_id=%s " % (is_all, cate_name, city_id)
+
+    cur_mapmarker.execute(sql)
+    results = cur_mapmarker.fetchall()
+
+    # brand_dict的value是[品牌名，品类名，图标地址，月总销售额，人均销售单量，总销量，门店数]
+    brand_dict = {}
+    for row_cate in results:
+        brand_dict[row_cate[1]] = [row_cate[1], row_cate[2], row_cate[5], 0, 0, 0, 0]
+    for row in results:
+
+        if row[1] in brand_dict.keys():
+            brand_value = brand_dict.get(row[1])
+            brand_value[5] += row[7]
+            brand_value[5] += row[8]
+            if row[7] > 0:
+                brand_value[6] += 1
+            if row[8] > 0:
+                brand_value[6] += 1
+            if row[9] is not None:
+                brand_value[3] += row[9] * row[8]
+                brand_value[4] += row[8]
+    return_list = []
+    for row_return in brand_dict.keys():
+        return_dict = {}
+        row_value = brand_dict[row_return]
+        return_dict["brandName"] = row_value[0]
+        return_dict["cateName"] = row_value[1]
+        return_dict["iconUrl"] = row_value[2]
+        if row_value[4] > 0:
+            shop_ave = int(round(row_value[3] / row_value[4], 0))
+        else:
+            shop_ave = 0
+        return_dict["shopAve"] = shop_ave
+        return_dict["monthSale"] = row_value[5]
+        return_dict["markCount"] = row_value[6]
+        if row_value[6] > 0:
+            month_sale_sve = round(row_value[5] / row_value[6], 0)
+        else:
+            month_sale_sve = 0
+        return_dict["monthSaleAve"] = month_sale_sve
+        return_list.append(return_dict)
+    return_list = sorted(return_list, key=(lambda x: x['monthSale']), reverse=True)
+    jsondu = json.dumps(return_list, ensure_ascii=False)
+
+    db_mapmarker.close()
+    return jsondu
+
+
+# 品类筛选列表
+@app.route('/api/screenCateList')
+def screen_cate_list():
+    """返回找店下客单价区间(只有美团)
+            @@@
+            #### 参数列表
+            | 参数 | 描述 | 类型 | 例子 |
+            |--------|--------|--------|--------|
+            |    city_id    |    城市id    |    string   |    1    |
+            |    cate_name    |    品类名称    |    string   |    快餐便当    |
+            #### 字段解释
+            | 名称 | 描述 | 类型 |
+            |--------|--------|--------|--------|
+            |    brandName    |    品类名称    |    string   |
+            |    cateName    |    品牌名称    |    string   |
+            |    iconUrl    |    图标地址    |    string   |
+            |    shopAve    |    客单价    |    float   |
+            |    monthSale    |    月销单量   |    int   |
+            |    markCount    |    店铺数     |    int   |
+            |    monthSaleAve    |    店铺平均月销单量    |    float   |
+            #### return
+            - ##### json
+            > [{"brandName": "张亮麻辣烫", "cateName": "麻辣烫冒菜", "iconUrl": null, "shopAve": 17, "monthSale": 1724778, "markCount": 533, "monthSaleAve": 3236.0}]
+            @@@
+            """
+
+    db_mapmarker = pool_mapmarkeronline.connection()
+    cur_mapmarker = db_mapmarker.cursor()
+    city_id = request.args.get("city_id")
+
+    sql = "SELECT " \
+          "a.ka_cate_name,sum(a.mark_sale) mark_sale,SUM(a.mark_count) mark_count " \
+          "FROM " \
+          "(SELECT " \
+          "ka_cate_name,SUM(mark_sale_num_elm) mark_sale,COUNT(*) mark_count " \
+          "FROM " \
+          "t_map_ka_mark_bak where city_id=%s and mark_sale_num_elm>0 GROUP BY ka_cate_name  " \
+          "UNION all " \
+          "SELECT " \
+          "ka_cate_name,SUM(mark_sale_num_mt) mark_sale,COUNT(*) mark_count " \
+          "FROM t_map_ka_mark_bak where city_id=%s and mark_sale_num_mt>0 " \
+          "GROUP BY ka_cate_name ) a GROUP BY a.ka_cate_name" % (city_id, city_id)
+    cur_mapmarker.execute(sql)
+    results = cur_mapmarker.fetchall()
+    all_cate_month_sale = 0
+    all_cate_mark_count = 0
+    cate_dict = {}
+    for row in results:
+        all_cate_month_sale += row[1]
+        all_cate_mark_count += row[2]
+        cate_dict[row[0]] = [row[0], row[1], row[2], 0, 0]
+        # cate_dict['cateName'] = row[0]
+        # cate_dict['monthSale'] = row[1]
+        # cate_dict['markCount'] = row[2]
+    sql_ave = "SELECT ka_cate_name,MIN(mark_sale_ave_mt) min_ave,MAX(mark_sale_ave_mt) max_ave from t_map_ka_mark_bak where city_id=%s GROUP BY ka_cate_name" % city_id
+    cur_mapmarker.execute(sql_ave)
+    results_ave = cur_mapmarker.fetchall()
+    for row_ave in results_ave:
+        if row_ave[1] is None:
+            min_ave = 0
+            max_ave = 0
+        else:
+            min_ave = row_ave[1]
+            max_ave = row_ave[2]
+        cate_dict[row_ave[0]][3] = min_ave
+        cate_dict[row_ave[0]][4] = max_ave
+    return_list = []
+    for cate_key in cate_dict.keys():
+        return_cate_dict = {}
+        cate_value = cate_dict[cate_key]
+        return_cate_dict['cateName'] = cate_value[0]
+        return_cate_dict['monthSale'] = int(cate_value[1])
+        return_cate_dict['markCount'] = int(cate_value[2])
+        return_cate_dict['mixAve'] = float(cate_value[3])
+        return_cate_dict['maxAve'] = float(cate_value[4])
+        return_list.append(return_cate_dict)
+    return_list = sorted(return_list, key=(lambda x: x['monthSale']), reverse=True)
+    return_dict = {}
+    return_dict['allCateMonthSale'] = int(all_cate_month_sale)
+    return_dict['allCateMarkCount'] = int(all_cate_mark_count)
+    return_dict['cateInfo'] = return_list
+
+    jsondu = json.dumps(return_dict, ensure_ascii=False)
+
+    db_mapmarker.close()
+    return jsondu
+
+# 通过筛选获取品牌下具体门店
+@app.route('/api/getMarkByBrand')
+def get_mark_by_brand():
+    """通过品牌查询对应的门店
+        @@@
+        #### 参数列表
+        | 参数 | 描述 | 类型 | 例子 |
+        |--------|--------|--------|--------|
+        |    city_id    |    城市id    |    string   |    1    |
+        |    cate_name    |    品类名称    |    string   |    快餐便当    |
+        |    brand_name    |    品牌名称    |    string   |    赛百味    |
+        |    platform    |    平台    |    string   |    elm    |
+        #### 字段解释
+        | 名称 | 描述 | 类型 |
+        |--------|--------|--------|--------|
+        |    brandName    |    品类名称    |    string   |
+        |    cateName    |    品牌名称    |    string   |
+        |    iconUrl    |    图标地址    |    string   |
+        |    shopAve    |    客单价    |    float   |
+        |    monthSale    |    月销单量   |    int   |
+        |    markCount    |    店铺数     |    int   |
+        |    monthSaleAve    |    店铺平均月销单量    |    float   |
+        #### return
+        - ##### json
+        > [{"brandName": "张亮麻辣烫", "cateName": "麻辣烫冒菜", "iconUrl": null, "shopAve": 17, "monthSale": 1724778, "markCount": 533, "monthSaleAve": 3236.0}]
+        @@@
+        """
+
+    db_mapmarker = pool_mapmarkeronline.connection()
+    cur_mapmarker = db_mapmarker.cursor()
+    city_id = request.args.get("city_id")
+    cate_name = request.args.get("cate_name")
+    brand_name = request.args.get("brand_name")
+    platform = request.args.get("platform")
+
+    sql = "SELECT city_name,longitude,latitude,mark_name,mark_address,icon_address,mark_sale_num_elm,mark_sale_num_mt," \
+          "mark_sale_ave_mt,opening_hours,rating from t_map_ka_mark where city_id=%s and ka_cate_name ='%s'" \
+          " and ka_name='%s' " % (city_id, cate_name,brand_name)
+    cur_mapmarker.execute(sql)
+    results = cur_mapmarker.fetchall()
+
+
 
 
 app.register_blueprint(api, url_prefix='/')

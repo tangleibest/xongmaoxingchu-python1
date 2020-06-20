@@ -41,7 +41,7 @@ for city_row in city_name:
                 food_list.append('%s-%s' % (row_food[0], row_food[1]))
             shop_list = [row[1], row[2], row[3], row[4], row[5], row[6], row[7], row[8], row[9], row[10],
                          row[11]] + food_list
-            # print(shop_list)
+            print(shop_list)
             writer.writerow(shop_list)
 
     db.close()
