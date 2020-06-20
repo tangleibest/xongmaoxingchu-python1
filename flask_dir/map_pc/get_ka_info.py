@@ -192,7 +192,7 @@ for CITY in CITY_LIST:
     insert_sql = "insert into " \
                  "t_map_ka_mark_bak" \
                  "(city_id,city_name,longitude,latitude,mark_name,mark_address,mark_tel,ka_name,mark_sale_num_mt," \
-                 "mark_sale_num_elm,ka_cate_name,mark_sale_ave_mt,,opening_hours,rating) " \
+                 "mark_sale_num_elm,ka_cate_name,mark_sale_ave_mt,opening_hours,rating) " \
                  "values " \
                  "(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)"
 
